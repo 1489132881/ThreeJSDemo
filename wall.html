@@ -57,6 +57,33 @@
       .controls-info {
         pointer-events: none;
       }
+      #controls-info {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        background-color: rgba(255, 255, 255, 0.8);
+        padding: 10px;
+        border-radius: 5px;
+        font-size: 14px;
+        pointer-events: none;
+      }
+      #length-info {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        background-color: rgba(255, 255, 255, 0.8);
+        padding: 10px;
+        border-radius: 5px;
+        font-size: 14px;
+        pointer-events: none;
+      }
+      .controls label {
+        margin-bottom: 4px;
+        color: #333;
+      }
+      .controls input {
+        margin-bottom: 12px;
+      }
     </style>
   </head>
   <body>
@@ -64,23 +91,26 @@
       <div class="canvas-container">
         <canvas id="canvas" width="1550" height="850"></canvas>
         <canvas id="canvas3d" width="1550" height="850"></canvas>
+        <div id="controls-info" style="display: none">
+          鼠标控制说明：<br />
+          左键 - 旋转视角<br />
+          右键 - 平移场景<br />
+          滚轮 - 缩放场景
+        </div>
+        <div id="length-info" class="controls-info">右键墙体查看长度</div>
       </div>
 
       <div class="controls">
-        <input type="number" id="wallLength" placeholder="墙体长度" />
-        <input
-          type="number"
-          id="wallThickness"
-          value="10"
-          placeholder="墙体厚度"
-        />
+        <label for="wallLength">墙体长度：</label>
+        <input type="number" id="wallLength" />
+
+        <label for="wallThickness">墙体厚度：</label>
+        <input type="number" id="wallThickness" value="10" />
+
+        <label for="wallHeight">墙体高度：</label>
+        <input type="number" id="wallHeight" value="100" />
+
         <button id="toggle3d" class="btn-3d">切换3D视图</button>
-        <input
-          type="number"
-          id="wallHeight"
-          value="100"
-          placeholder="墙体高度"
-        />
       </div>
     </div>
     <script type="importmap">

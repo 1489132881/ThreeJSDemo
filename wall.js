@@ -1,5 +1,5 @@
 import { is3DMode, toggle3DMode, convert2Dto3D } from './wall3D.js'
-
+import { calculateExtendedIntersection1, calculateExtendedIntersection2 } from './supply.js'
 const canvas = document.getElementById('canvas')
 const ctx = canvas.getContext('2d')
 
@@ -8,6 +8,65 @@ let startPoint = null
 let currentPreview = null
 const walls = [] // 存储所有已绘制的墙体
 let continuousDrawing = false // 添加一个标记来追踪是否继续绘制
+
+// 添加鼠标位置追踪
+let mousePos = { x: 0, y: 0 }
+
+// 添加一个新变量来控制是否显示连线
+let showDistanceLine = true
+
+// 添加一个新变量来单独控制墙体测量线的显示
+let showWallMeasurement = true
+
+const wallCorners = [] // 用于存储所有墙角信息
+
+function saveWallCorner(corner) {
+  wallCorners.push(corner)
+}
+
+function drawAndSaveWallCorners(wall1, wall2) {
+  const result1 = calculateExtendedIntersection1(wall1, wall2)
+  const result2 = calculateExtendedIntersection2(wall1, wall2)
+
+  // 设置填充颜色
+  ctx.fillStyle = '#ddd' // 假设墙1和墙2有相同的颜色属性
+
+  // 绘制并保存第一个墙角
+  ctx.beginPath()
+  ctx.moveTo(result1.line1End.x, result1.line1End.y)
+  ctx.lineTo(result1.intersection.x, result1.intersection.y)
+  ctx.lineTo(result1.line2Start.x, result1.line2Start.y)
+  ctx.lineTo(wall1.end.x, wall1.end.y)
+  ctx.closePath()
+  ctx.fill()
+
+  saveWallCorner({
+    points: [
+      { x: result1.line1End.x, y: result1.line1End.y },
+      { x: result1.intersection.x, y: result1.intersection.y },
+      { x: result1.line2Start.x, y: result1.line2Start.y },
+      { x: wall1.end.x, y: wall1.end.y }
+    ]
+  })
+
+  // 绘制并保存第二个墙角
+  ctx.beginPath()
+  ctx.moveTo(result2.line1End.x, result2.line1End.y)
+  ctx.lineTo(result2.intersection.x, result2.intersection.y)
+  ctx.lineTo(result2.line2Start.x, result2.line2Start.y)
+  ctx.lineTo(wall1.end.x, wall1.end.y)
+  ctx.closePath()
+  ctx.fill()
+
+  saveWallCorner({
+    points: [
+      { x: result2.line1End.x, y: result2.line1End.y },
+      { x: result2.intersection.x, y: result2.intersection.y },
+      { x: result2.line2Start.x, y: result2.line2Start.y },
+      { x: wall1.end.x, y: wall1.end.y }
+    ]
+  })
+}
 
 // 鼠标按下：开始绘制
 canvas.addEventListener('mousedown', (e) => {
@@ -18,8 +77,14 @@ canvas.addEventListener('mousedown', (e) => {
     startPoint = null
     currentPreview = null
     isDrawing = false
+    showDistanceLine = false  // 只控制点到点的距离线，不影响墙体测量线
     redrawCanvas()
     return
+  }
+
+  // 左键点击时恢复显示连线
+  if (e.button === 0) { // 0 表示左键
+    showDistanceLine = true
   }
 
   // 只有在没有起点的情况下才设置新的起点
@@ -33,13 +98,17 @@ canvas.addEventListener('mousedown', (e) => {
 
 // 鼠标移动：实时绘制预览线
 canvas.addEventListener('mousemove', (e) => {
+  const rect = canvas.getBoundingClientRect()
+  mousePos.x = e.clientX - rect.left
+  mousePos.y = e.clientY - rect.top
+
   if (!startPoint) return // 如果没有起点就返回
 
-  const rect = canvas.getBoundingClientRect()
   const shiftKeyPressed = e.shiftKey
 
-  let endX = snapToGrid(e.clientX - rect.left)
-  let endY = snapToGrid(e.clientY - rect.top)
+  // 更新：使用实际鼠标位置而不是网格对齐的位置来计算预览线
+  let endX = e.clientX - rect.left
+  let endY = e.clientY - rect.top
 
   if (shiftKeyPressed) {
     const dx = endX - startPoint.x
@@ -64,6 +133,14 @@ canvas.addEventListener('mouseup', (e) => {
     startPoint = currentPreview.end // 将终点设置为下一次绘制的起点
     currentPreview = null
     isDrawing = false
+
+    // 保存墙角信息
+    if (walls.length >= 2) {
+      const wall1 = walls[walls.length - 2]
+      const wall2 = walls[walls.length - 1]
+      drawAndSaveWallCorners(wall1, wall2)
+    }
+
     redrawCanvas()
   }
 })
@@ -100,7 +177,6 @@ function calculateWall(start, end) {
     { x: newEnd.x - offsetX, y: newEnd.y - offsetY },
   ]
 
-
   return {
     start: { ...start },
     end: newEnd,
@@ -110,7 +186,40 @@ function calculateWall(start, end) {
   }
 }
 
+function isPointNearLine(point, lineStart, lineEnd, threshold = 10) {
+  const A = point.x - lineStart.x
+  const B = point.y - lineStart.y
+  const C = lineEnd.x - lineStart.x
+  const D = lineEnd.y - lineStart.y
 
+  const dot = A * C + B * D
+  const len_sq = C * C + D * D
+
+  // 如果线段长度为0，直接返回到起点的距离
+  if (len_sq === 0) return Math.sqrt(A * A + B * B)
+
+  let param = dot / len_sq
+
+  // 找到线段上最近的点
+  let xx, yy
+
+  if (param < 0) {
+    xx = lineStart.x
+    yy = lineStart.y
+  } else if (param > 1) {
+    xx = lineEnd.x
+    yy = lineEnd.y
+  } else {
+    xx = lineStart.x + param * C
+    yy = lineStart.y + param * D
+  }
+
+  const dx = point.x - xx
+  const dy = point.y - yy
+  const distance = Math.sqrt(dx * dx + dy * dy)
+
+  return distance <= threshold
+}
 
 function redrawCanvas() {
   ctx.clearRect(0, 0, canvas.width, canvas.height)
@@ -120,6 +229,59 @@ function redrawCanvas() {
     ctx.fillStyle = '#ddd'
     ctx.beginPath()
     wall.points.forEach((p, i) => {
+      if (i === 0) ctx.moveTo(p.x, p.y)
+      else ctx.lineTo(p.x, p.y)
+    })
+    ctx.closePath()
+    ctx.fill()
+
+    // 移除对 showDistanceLine 的依赖，只要鼠标在墙体附近就显示测量线
+    if (isPointNearLine(mousePos, wall.start, wall.end)) {
+      // 添加墙体测量线
+      const length = Math.sqrt(
+        Math.pow(wall.end.x - wall.start.x, 2) +
+        Math.pow(wall.end.y - wall.start.y, 2)
+      ).toFixed(2)
+
+      // 设置测量线样式
+      ctx.strokeStyle = '#666'
+      ctx.setLineDash([5, 5])
+      ctx.lineWidth = 1
+
+      // 计算测量线的偏移位置（垂直于墙体）
+      const offsetDistance = 10
+      const offsetX = offsetDistance * Math.sin(-wall.angle)
+      const offsetY = offsetDistance * Math.cos(wall.angle)
+
+      // 绘制测量线
+      ctx.beginPath()
+      ctx.moveTo(wall.start.x - offsetX, wall.start.y - offsetY)
+      ctx.lineTo(wall.end.x - offsetX, wall.end.y - offsetY)
+      ctx.stroke()
+
+      // 绘制测量线两端的短线
+      ctx.setLineDash([])
+      ctx.beginPath()
+      ctx.moveTo(wall.start.x, wall.start.y)
+      ctx.lineTo(wall.start.x - offsetX, wall.start.y - offsetY)
+      ctx.moveTo(wall.end.x, wall.end.y)
+      ctx.lineTo(wall.end.x - offsetX, wall.end.y - offsetY)
+      ctx.stroke()
+
+      // 添加尺寸文本
+      ctx.fillStyle = 'black'
+      ctx.font = '14px Arial'
+      const midX = (wall.start.x + wall.end.x) / 2 - offsetX
+      const midY = (wall.start.y + wall.end.y) / 2 - offsetY
+      ctx.fillText(`${length}px`, midX, midY)
+    }
+  })
+
+  // 绘制所有墙角
+  wallCorners.forEach(corner => {
+    ctx.fillStyle = '#ddd'
+    ctx.beginPath()
+    corner.points.forEach((p, i) => {
       if (i === 0) ctx.moveTo(p.x, p.y)
       else ctx.lineTo(p.x, p.y)
     })
@@ -155,7 +317,64 @@ function redrawCanvas() {
     ctx.arc(startPoint.x, startPoint.y, 5, 0, Math.PI * 2)
     ctx.fill()
   }
-  console.log(walls.points)
+
+  // 计算并显示鼠标到最近顶点的距离
+  if (showDistanceLine) {
+    let nearestPoint = null
+    let minDistance = Infinity
+
+    walls.forEach(wall => {
+      // 检查墙体的起点和终点
+      const points = [wall.start, wall.end]
+      points.forEach(point => {
+        const distance = Math.sqrt(
+          Math.pow(mousePos.x - point.x, 2) +
+          Math.pow(mousePos.y - point.y, 2)
+        )
+        if (distance < minDistance) {
+          minDistance = distance
+          nearestPoint = point
+        }
+      })
+    })
+
+    // 如果找到最近的点，绘制测量线
+    if (nearestPoint) {
+      // 设置测量线样式
+      ctx.strokeStyle = '#2196F3'
+      ctx.setLineDash([5, 5])
+      ctx.lineWidth = 1
+
+      // 绘制从鼠标到最近点的连线
+      ctx.beginPath()
+      ctx.moveTo(mousePos.x, mousePos.y)
+      ctx.lineTo(nearestPoint.x, nearestPoint.y)
+      ctx.stroke()
+
+      // 重置虚线设置
+      ctx.setLineDash([])
+
+      // 显示距离文本
+      const distance = Math.sqrt(
+        Math.pow(mousePos.x - nearestPoint.x, 2) +
+        Math.pow(mousePos.y - nearestPoint.y, 2)
+      ).toFixed(0)
+
+      // 计算文本位置（在线的中间）
+      const textX = (mousePos.x + nearestPoint.x) / 2
+      const textY = (mousePos.y + nearestPoint.y) / 2 - 10
+
+      // 绘制文本背景
+      ctx.fillStyle = 'white'
+      ctx.fillRect(textX - 20, textY - 15, 40, 20)
+
+      // 绘制距离文本
+      ctx.fillStyle = '#2196F3'
+      ctx.font = '12px Arial'
+      ctx.textAlign = 'center'
+      ctx.fillText(`${distance}px`, textX, textY)
+    }
+  }
 }
 
 document.getElementById('wallThickness').addEventListener('input', () => {
@@ -170,15 +389,19 @@ function snapToGrid(value) {
   return Math.round(value / gridSize) * gridSize
 }
 
-  // 添加3D切换按钮事件监听
+// 添加3D切换按钮事件监听
 document.getElementById('toggle3d').addEventListener('click', () => {
+  const lengthInfo = document.getElementById('length-info')
   const is2D = !toggle3DMode(walls)
   if (is2D) {
     redrawCanvas()
+    lengthInfo.style.display = 'block'
+  } else {
+    lengthInfo.style.display = 'none'
   }
 })
 
-  // 监听墙体高度变化
+// 监听墙体高度变化
 document.getElementById('wallHeight').addEventListener('input', () => {
   if (is3DMode) {
     convert2Dto3D(walls)

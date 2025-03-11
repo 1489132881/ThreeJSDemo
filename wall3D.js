@@ -56,9 +56,6 @@ function init3DScene() {
   // 设置初始目标点
   controls.target.set(750, 0, 400)
 
-  // 添加鼠标按键说明
-  addControlsInfo()
-
   // 添加环境光和定向光
   const ambientLight = new THREE.AmbientLight(0x404040, 1)
   scene.add(ambientLight)
@@ -96,25 +93,6 @@ function init3DScene() {
   // 添加辅助坐标轴（可选，帮助调试）
   const axesHelper = new THREE.AxesHelper(100)
   scene.add(axesHelper)
-}
-
-// 添加控制说明
-function addControlsInfo() {
-  const info = document.createElement('div')
-  info.style.position = 'absolute'
-  info.style.top = '10px'
-  info.style.left = '10px'
-  info.style.backgroundColor = 'rgba(255, 255, 255, 0.8)'
-  info.style.padding = '10px'
-  info.style.borderRadius = '5px'
-  info.style.fontSize = '14px'
-  info.innerHTML = `
-    鼠标控制说明：<br>
-    左键 - 旋转视角<br>
-    右键 - 平移场景<br>
-    滚轮 - 缩放场景
-  `
-  document.body.appendChild(info)
 }
 
 // 将2D墙体转换为3D模型
@@ -202,11 +180,13 @@ function toggle3DMode(walls) {
   const button = document.getElementById('toggle3d')
   const canvas2d = document.getElementById('canvas')
   const canvas3d = document.getElementById('canvas3d')
+  const controlsInfo = document.getElementById('controls-info')
 
   if (is3DMode) {
     button.classList.add('active')
     canvas2d.style.display = 'none'
     canvas3d.style.display = 'block'
+    controlsInfo.style.display = 'block'  // 显示控制说明
     if (!scene) {
       init3DScene()
     }
@@ -217,6 +197,7 @@ function toggle3DMode(walls) {
     button.classList.remove('active')
     canvas3d.style.display = 'none'
     canvas2d.style.display = 'block'
+    controlsInfo.style.display = 'none'  // 隐藏控制说明
     return false
   }
 }
