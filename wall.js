@@ -170,7 +170,7 @@ function snapToGrid(value) {
   return Math.round(value / gridSize) * gridSize
 }
 
-// 添加3D切换按钮事件监听
+  // 添加3D切换按钮事件监听
 document.getElementById('toggle3d').addEventListener('click', () => {
   const is2D = !toggle3DMode(walls)
   if (is2D) {
@@ -178,7 +178,7 @@ document.getElementById('toggle3d').addEventListener('click', () => {
   }
 })
 
-// 监听墙体高度变化
+  // 监听墙体高度变化
 document.getElementById('wallHeight').addEventListener('input', () => {
   if (is3DMode) {
     convert2Dto3D(walls)
