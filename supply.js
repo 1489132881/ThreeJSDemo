@@ -15,8 +15,10 @@ export function calculateExtendedIntersection1(wall1, wall2) {
   const intersection = calculateLineIntersection(line1Start, line1End, line2Start, line2End)
 
   return {
+    line1Start,
     line1End,
     line2Start,
+    line2End,
     intersection
   }
 }
@@ -39,8 +41,10 @@ export function calculateExtendedIntersection2(wall1, wall2) {
   const intersection = calculateLineIntersection(line1Start, line1End, line2Start, line2End)
 
   return {
+    line1Start,
     line1End,
     line2Start,
+    line2End,
     intersection
   }
 }

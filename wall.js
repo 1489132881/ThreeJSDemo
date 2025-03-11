@@ -22,7 +22,7 @@ function saveWallCorner(corner) {
   wallCorners.push(corner)
 }
 
-function drawAndSaveWallCorners(wall1, wall2, special = false) {
+function drawAndSaveWallCorners1(wall1, wall2) {
   const result1 = calculateExtendedIntersection1(wall1, wall2)
   const result2 = calculateExtendedIntersection2(wall1, wall2)
 
@@ -65,6 +65,54 @@ function drawAndSaveWallCorners(wall1, wall2, special = false) {
       { x: result2.intersection.x, y: result2.intersection.y },
       { x: result2.line2Start.x, y: result2.line2Start.y },
       { x: wall1.end.x, y: wall1.end.y }
+    ]
+  })
+}
+
+function drawAndSaveWallCorners2(existingWall, newWall) {
+  const result1 = calculateExtendedIntersection1(existingWall, newWall)
+  const result2 = calculateExtendedIntersection2(existingWall, newWall)
+
+  // 设置填充颜色
+  ctx.fillStyle = '#ddd' // 假设墙1和墙2有相同的颜色属性
+
+  // 绘制并保存第一种墙角
+  ctx.beginPath()
+  ctx.moveTo(result1.line1Start.x, result1.line1Start.y)
+  ctx.lineTo(result1.intersection.x, result1.intersection.y)
+  ctx.lineTo(result1.line2End.x, result1.line2End.y)
+  ctx.lineTo(existingWall.start.x, existingWall.start.y)
+
+  ctx.closePath()
+  ctx.fill()
+
+
+  saveWallCorner({
+    points: [
+      { x: result1.line1Start.x, y: result1.line1Start.y },
+      { x: result1.intersection.x, y: result1.intersection.y },
+      { x: result1.line2End.x, y: result1.line2End.y },
+      { x: existingWall.start.x, y: existingWall.start.y }
+    ]
+  })
+
+  // 绘制并保存第二种墙角
+  ctx.beginPath()
+  ctx.moveTo(result2.line1Start.x, result2.line1Start.y)
+  ctx.lineTo(result2.intersection.x, result2.intersection.y)
+  ctx.lineTo(result2.line2End.x, result2.line2End.y)
+  ctx.lineTo(existingWall.start.x, existingWall.start.y)
+
+  ctx.closePath()
+  ctx.fill()
+
+
+  saveWallCorner({
+    points: [
+      { x: result2.line1Start.x, y: result2.line1Start.y },
+      { x: result2.intersection.x, y: result2.intersection.y },
+      { x: result2.line2End.x, y: result2.line2End.y },
+      { x: existingWall.start.x, y: existingWall.start.y }
     ]
   })
 }
@@ -167,21 +215,25 @@ canvas.addEventListener('mouseup', (e) => {
     if (currentWalls.length >= 2) {
       const wall1 = currentWalls[currentWalls.length - 2]
       const wall2 = currentWalls[currentWalls.length - 1]
-      drawAndSaveWallCorners(wall1, wall2)
+      drawAndSaveWallCorners1(wall1, wall2)
+
+      // 检查新墙体与所有现有墙体的相交情况
+      const newWall = currentWalls[currentWalls.length - 1]
+      walls.forEach(existingWall => {
+        if (existingWall !== newWall && existingWall !== currentWalls[currentWalls.length - 2]) {
+          const intersection = findIntersection(newWall, existingWall)
+          // 如果交点等于existingWall的起点或newWall的终点，则绘制墙角
+          if (intersection && intersection.x === existingWall.start.x && intersection.y === existingWall.start.y && intersection.x === newWall.end.x && intersection.y === newWall.end.y) {
+            drawAndSaveWallCorners2(existingWall, newWall)
+          }
+        }
+      })
     }
 
-    // 检查新墙体与所有现有墙体的相交情况
-    const newWall = currentWalls[currentWalls.length - 1]
-    walls.forEach(existingWall => {
-      if (existingWall !== newWall) {
-        const intersection = findIntersection(newWall, existingWall)
-        console.log(intersection)
+    // 保存墙体测量线信息
 
-        // if (intersection) {
-        //   drawAndSaveWallCorners(existingWall, newWall, true)
-        // }
-      }
-    })
+
+
 
     redrawCanvas()
   }
