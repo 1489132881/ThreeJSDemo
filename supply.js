@@ -45,29 +45,6 @@ export function calculateExtendedIntersection2(wall1, wall2) {
   }
 }
 
-// 用于计算墙a和墙b的交点
-export function calculateExtendedIntersection3(wall1, wall2) {
-  // 计算墙1的外侧线
-  const offset1X = wall1.thickness / 2 * Math.sin(-wall1.angle)
-  const offset1Y = wall1.thickness / 2 * Math.cos(wall1.angle)
-  const line1Start = { x: wall1.start.x + offset1X, y: wall1.start.y + offset1Y }
-  const line1End = { x: wall1.end.x + offset1X, y: wall1.end.y + offset1Y }
-
-  // 计算墙2的外侧线
-  const offset2X = -wall2.thickness / 2 * Math.sin(-wall2.angle)
-  const offset2Y = -wall2.thickness / 2 * Math.cos(wall2.angle)
-  const line2Start = { x: wall2.start.x + offset2X, y: wall2.start.y + offset2Y }
-  const line2End = { x: wall2.end.x + offset2X, y: wall2.end.y + offset2Y }
-
-  // 计算交点
-  const intersection = calculateLineIntersection(line1Start, line1End, line2Start, line2End)
-
-  return {
-    line1End,
-    line2Start,
-    intersection
-  }
-}
 
 // 计算两条线的交点
 function calculateLineIntersection(p1, p2, p3, p4) {

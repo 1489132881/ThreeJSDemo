@@ -177,9 +177,9 @@ canvas.addEventListener('mouseup', (e) => {
         const intersection = findIntersection(newWall, existingWall)
         console.log(intersection)
 
-        if (intersection) {
-          drawAndSaveWallCorners(existingWall, newWall, true)
-        }
+        // if (intersection) {
+        //   drawAndSaveWallCorners(existingWall, newWall, true)
+        // }
       }
     })
 
