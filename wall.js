@@ -1,5 +1,5 @@
 import { is3DMode, toggle3DMode, convert2Dto3D } from './wall3D.js'
-import { calculateExtendedIntersection1, calculateExtendedIntersection2 } from './supply.js'
+import { calculateExtendedIntersection1, calculateExtendedIntersection2, findIntersection } from './supply.js'
 const canvas = document.getElementById('canvas')
 const ctx = canvas.getContext('2d')
 
@@ -7,16 +7,12 @@ let isDrawing = false
 let startPoint = null
 let currentPreview = null
 const walls = [] // 存储所有已绘制的墙体
-let continuousDrawing = false // 添加一个标记来追踪是否继续绘制
 
 // 添加鼠标位置追踪
 let mousePos = { x: 0, y: 0 }
 
 // 添加一个新变量来控制是否显示连线
 let showDistanceLine = true
-
-// 添加一个新变量来单独控制墙体测量线的显示
-let showWallMeasurement = true
 
 const wallCorners = [] // 用于存储所有墙角信息
 
@@ -26,7 +22,7 @@ function saveWallCorner(corner) {
   wallCorners.push(corner)
 }
 
-function drawAndSaveWallCorners(wall1, wall2) {
+function drawAndSaveWallCorners(wall1, wall2, special = false) {
   const result1 = calculateExtendedIntersection1(wall1, wall2)
   const result2 = calculateExtendedIntersection2(wall1, wall2)
 
@@ -42,6 +38,7 @@ function drawAndSaveWallCorners(wall1, wall2) {
   ctx.closePath()
   ctx.fill()
 
+
   saveWallCorner({
     points: [
       { x: result1.line1End.x, y: result1.line1End.y },
@@ -51,6 +48,7 @@ function drawAndSaveWallCorners(wall1, wall2) {
     ]
   })
 
+
   // 绘制并保存第二个墙角
   ctx.beginPath()
   ctx.moveTo(result2.line1End.x, result2.line1End.y)
@@ -59,6 +57,7 @@ function drawAndSaveWallCorners(wall1, wall2) {
   ctx.lineTo(wall1.end.x, wall1.end.y)
   ctx.closePath()
   ctx.fill()
+
 
   saveWallCorner({
     points: [
@@ -102,6 +101,26 @@ canvas.addEventListener('mousedown', (e) => {
   }
 })
 
+function snapToNearestWallEnd(point, walls, threshold = 50) {
+  let nearestPoint = point
+  let minDistance = threshold
+
+  walls.forEach(wall => {
+    const endpoints = [wall.start, wall.end]
+    endpoints.forEach(endpoint => {
+      const distance = Math.sqrt(
+        Math.pow(point.x - endpoint.x, 2) + Math.pow(point.y - endpoint.y, 2)
+      )
+      if (distance < minDistance) {
+        minDistance = distance
+        nearestPoint = endpoint
+      }
+    })
+  })
+
+  return nearestPoint
+}
+
 // 鼠标移动：实时绘制预览线
 canvas.addEventListener('mousemove', (e) => {
   const rect = canvas.getBoundingClientRect()
@@ -126,7 +145,10 @@ canvas.addEventListener('mousemove', (e) => {
     }
   }
 
-  currentPreview = calculateWall(startPoint, { x: endX, y: endY })
+  // 自动吸附到最近的墙体终点
+  const snappedEnd = snapToNearestWallEnd({ x: endX, y: endY }, walls)
+
+  currentPreview = calculateWall(startPoint, snappedEnd)
   redrawCanvas()
 })
 
@@ -147,6 +169,19 @@ canvas.addEventListener('mouseup', (e) => {
       const wall2 = currentWalls[currentWalls.length - 1]
       drawAndSaveWallCorners(wall1, wall2)
     }
+
+    // 检查新墙体与所有现有墙体的相交情况
+    const newWall = currentWalls[currentWalls.length - 1]
+    walls.forEach(existingWall => {
+      if (existingWall !== newWall) {
+        const intersection = findIntersection(newWall, existingWall)
+        console.log(intersection)
+
+        if (intersection) {
+          drawAndSaveWallCorners(existingWall, newWall, true)
+        }
+      }
+    })
 
     redrawCanvas()
   }
