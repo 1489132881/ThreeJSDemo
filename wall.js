@@ -20,6 +20,8 @@ let showWallMeasurement = true
 
 const wallCorners = [] // 用于存储所有墙角信息
 
+let currentWalls = [] // 用于存储当前绘制的墙体
+
 function saveWallCorner(corner) {
   wallCorners.push(corner)
 }
@@ -78,6 +80,10 @@ canvas.addEventListener('mousedown', (e) => {
     currentPreview = null
     isDrawing = false
     showDistanceLine = false  // 只控制点到点的距离线，不影响墙体测量线
+
+    // 将当前墙体添加到总墙体数组中
+    walls.push(...currentWalls)
+    currentWalls = [] // 重置当前墙体数组
     redrawCanvas()
     return
   }
@@ -85,14 +91,14 @@ canvas.addEventListener('mousedown', (e) => {
   // 左键点击时恢复显示连线
   if (e.button === 0) { // 0 表示左键
     showDistanceLine = true
-  }
 
-  // 只有在没有起点的情况下才设置新的起点
-  if (!startPoint) {
-    const x = snapToGrid(e.clientX - rect.left)
-    const y = snapToGrid(e.clientY - rect.top)
-    startPoint = { x, y }
-    isDrawing = true
+    // 只有在没有起点的情况下才设置新的起点
+    if (!startPoint) {
+      const x = snapToGrid(e.clientX - rect.left)
+      const y = snapToGrid(e.clientY - rect.top)
+      startPoint = { x, y }
+      isDrawing = true
+    }
   }
 })
 
@@ -129,15 +135,16 @@ canvas.addEventListener('mouseup', (e) => {
   if (e.button === 2) return // 忽略右键释放
 
   if (currentPreview) {
-    walls.push(currentPreview)
+    currentWalls.push(currentPreview)
+    walls.push(...currentWalls)
     startPoint = currentPreview.end // 将终点设置为下一次绘制的起点
     currentPreview = null
     isDrawing = false
 
     // 保存墙角信息
-    if (walls.length >= 2) {
-      const wall1 = walls[walls.length - 2]
-      const wall2 = walls[walls.length - 1]
+    if (currentWalls.length >= 2) {
+      const wall1 = currentWalls[currentWalls.length - 2]
+      const wall2 = currentWalls[currentWalls.length - 1]
       drawAndSaveWallCorners(wall1, wall2)
     }
 
@@ -392,7 +399,7 @@ function snapToGrid(value) {
 // 添加3D切换按钮事件监听
 document.getElementById('toggle3d').addEventListener('click', () => {
   const lengthInfo = document.getElementById('length-info')
-  const is2D = !toggle3DMode(walls)
+  const is2D = !toggle3DMode(walls, wallCorners)
   if (is2D) {
     redrawCanvas()
     lengthInfo.style.display = 'block'

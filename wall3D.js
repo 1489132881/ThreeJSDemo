@@ -175,7 +175,10 @@ function animate() {
 }
 
 // 切换2D/3D模式
-function toggle3DMode(walls) {
+function toggle3DMode(walls, corner) {
+  console.log(corner, walls)
+  const theWall = walls.concat(corner)
+  console.log(theWall)
   is3DMode = !is3DMode
   const button = document.getElementById('toggle3d')
   const canvas2d = document.getElementById('canvas')
@@ -190,7 +193,7 @@ function toggle3DMode(walls) {
     if (!scene) {
       init3DScene()
     }
-    convert2Dto3D(walls)
+    convert2Dto3D(theWall)
     animate()
     return true
   } else {
