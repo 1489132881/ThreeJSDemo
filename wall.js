@@ -367,7 +367,21 @@ function redrawCanvas() {
       ctx.font = '14px Arial'
       const midX = (wall.start.x + wall.end.x) / 2 - offsetX
       const midY = (wall.start.y + wall.end.y) / 2 - offsetY
-      ctx.fillText(`${length}px`, midX, midY)
+
+      // 文本平行于墙体
+      const angle = Math.atan2(wall.end.y - wall.start.y, wall.end.x - wall.start.x)
+      // 如果角度超过90度，就再加180度
+      console.log(angle)
+      const adjustedAngle = angle > Math.PI / 2 ? angle + Math.PI : angle < -Math.PI / 2 ? angle - Math.PI : angle
+
+      ctx.save() // 保存当前状态
+      angle > 0
+      const textX = midX - 10
+      const textY = midY - 10
+      ctx.translate(textX, textY) // 移动到文本中心
+      ctx.rotate(adjustedAngle) // 旋转文本
+      ctx.fillText(`${length}px`, 0, 0) // 绘制文本
+      ctx.restore() // 恢复状态
     }
   })
 
