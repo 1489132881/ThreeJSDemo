@@ -1,12 +1,13 @@
 import { is3DMode, toggle3DMode, convert2Dto3D } from './wall3D.js'
 import { calculateExtendedIntersection1, calculateExtendedIntersection2, findIntersection } from './supply.js'
+import { isDrawingDoor, drawDoor, doors, findNearestWallAndDoorStartPoint, isInSegment } from './door.js'
 const canvas = document.getElementById('canvas')
 const ctx = canvas.getContext('2d')
 
 let isDrawing = false
 let startPoint = null
 let currentPreview = null
-const walls = [] // 存储所有已绘制的墙体
+export const walls = [] // 存储所有已绘制的墙体
 
 // 添加鼠标位置追踪
 let mousePos = { x: 0, y: 0 }
@@ -17,6 +18,7 @@ let showDistanceLine = true
 const wallCorners = [] // 用于存储所有墙角信息
 
 let currentWalls = [] // 用于存储当前绘制的墙体
+
 
 function saveWallCorner(corner) {
   wallCorners.push(corner)
@@ -119,6 +121,9 @@ function drawAndSaveWallCorners2(existingWall, newWall) {
 
 // 鼠标按下：开始绘制
 canvas.addEventListener('mousedown', (e) => {
+  if (isDrawingDoor) {
+    return
+  }
   const rect = canvas.getBoundingClientRect()
 
   // 右键点击，完全断开绘制
@@ -129,7 +134,6 @@ canvas.addEventListener('mousedown', (e) => {
     showDistanceLine = false  // 只控制点到点的距离线，不影响墙体测量线
 
     // 将当前墙体添加到总墙体数组中
-    walls.push(...currentWalls)
     currentWalls = [] // 重置当前墙体数组
     redrawCanvas()
     return
@@ -171,6 +175,10 @@ function snapToNearestWallEnd(point, walls, threshold = 50) {
 
 // 鼠标移动：实时绘制预览线
 canvas.addEventListener('mousemove', (e) => {
+  // console.log(walls)
+  if (isDrawingDoor) {
+    return
+  }
   const rect = canvas.getBoundingClientRect()
   mousePos.x = e.clientX - rect.left
   mousePos.y = e.clientY - rect.top
@@ -197,6 +205,7 @@ canvas.addEventListener('mousemove', (e) => {
   const snappedEnd = snapToNearestWallEnd({ x: endX, y: endY }, walls)
 
   currentPreview = calculateWall(startPoint, snappedEnd)
+
   redrawCanvas()
 })
 
@@ -206,7 +215,7 @@ canvas.addEventListener('mouseup', (e) => {
 
   if (currentPreview) {
     currentWalls.push(currentPreview)
-    walls.push(...currentWalls)
+    walls.push(currentPreview)
     startPoint = currentPreview.end // 将终点设置为下一次绘制的起点
     currentPreview = null
     isDrawing = false
@@ -230,12 +239,24 @@ canvas.addEventListener('mouseup', (e) => {
       })
     }
 
-    // 保存墙体测量线信息
-
-
 
 
     redrawCanvas()
+  }
+
+  // 绘制所有门
+  if (isDrawingDoor) {
+    console.log('绘制门')
+    const rect = canvas.getBoundingClientRect()
+    // 查找距离鼠标现在在画布上的最近的墙体
+    const mouseX = e.clientX - rect.left
+    const mouseY = e.clientY - rect.top
+    const { nearestWall, doorStartPoint, doorEndPoint, minDistance } = findNearestWallAndDoorStartPoint(mouseX, mouseY)
+
+    if (isInSegment(doorStartPoint.x, doorEndPoint.x, nearestWall.start.x, nearestWall.end.x) && minDistance < 100) {
+      drawDoor(doorStartPoint, doorEndPoint, ctx) // 只在墙体上绘制门
+
+    }
   }
 })
 
@@ -386,6 +407,7 @@ function redrawCanvas() {
   })
 
   // 绘制所有墙角
+  console.log('绘制墙角')
   wallCorners.forEach(corner => {
     ctx.fillStyle = '#ddd'
     ctx.beginPath()
@@ -396,6 +418,30 @@ function redrawCanvas() {
     ctx.closePath()
     ctx.fill()
   })
+
+  // 绘制所有门
+  doors.forEach(door => {
+    // 绘制矩形 矩形中间有根竖线
+    ctx.fillStyle = '#aaa' // 填充颜色
+    ctx.beginPath()
+    ctx.moveTo(door.points[0].x, door.points[0].y)
+    ctx.lineTo(door.points[1].x, door.points[1].y)
+    ctx.lineTo(door.points[2].x, door.points[2].y)
+    ctx.lineTo(door.points[3].x, door.points[3].y)
+    ctx.closePath()
+    ctx.fill()
+
+    // 绘制竖线
+    ctx.beginPath()
+    ctx.moveTo(door.middle[0].x, door.middle[0].y)
+    ctx.lineTo(door.middle[1].x, door.middle[1].y)
+    ctx.stroke()
+
+    // 绘制边框
+    ctx.strokeStyle = '#000000' // 边框颜色
+    ctx.stroke()
+  })
+
 
   // 绘制预览线
   if (currentPreview) {
@@ -508,6 +554,8 @@ document.getElementById('toggle3d').addEventListener('click', () => {
     lengthInfo.style.display = 'none'
   }
 })
+
+
 
 // 监听墙体高度变化
 document.getElementById('wallHeight').addEventListener('input', () => {
