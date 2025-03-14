@@ -1,8 +1,9 @@
 import { walls } from './wall.js'
 // 添加门和门框
-const doorWidth = Number(document.getElementById('doorWidth').value) || 50
-const doorHeight = Number(document.getElementById('wallHeight').value) - 20 || 80
-const doorThickness = Number(document.getElementById('wallThickness').value) || 10
+let doorWidth = Number(document.getElementById('doorWidth').value)
+document.getElementById('doorWidth').addEventListener('input', () => {
+  doorWidth = Number(document.getElementById('doorWidth').value)
+})
 let isDrawingDoor = false
 let doors = []
 
@@ -46,47 +47,76 @@ function findNearestWallAndDoorStartPoint(x, y) {
 }
 
 // 限制绘制只能在线段内
-function isInSegment(x1, x2, x3, x4) {
+function isInSegment(x1, x2, x3, x4, y1, y2, y3, y4) {
   // 判断点是否在线段上
   if ((x3 < x1 && x1 < x2 && x2 < x4) ||
     (x3 < x2 && x2 < x1 && x1 < x4) ||
     (x4 < x1 && x1 < x2 && x2 < x3) ||
     (x4 < x2 && x2 < x1 && x1 < x3)) {
     return true
+  } else if (x1 === x2 && x2 === x3) {
+    if ((y3 < y1 && y1 < y2 && y2 < y4) ||
+      (y3 < y2 && y2 < y1 && y1 < y4) ||
+      (y4 < y1 && y1 < y2 && y2 < y3) ||
+      (y4 < y2 && y2 < y1 && y1 < y3)) {
+      return true
+    } else {
+      return false
+    }
   } else {
     return false
   }
+
 }
 
 // 绘制门框（矩形）
-function drawDoor(startPoint, endPoint, ctx) {
+function drawDoor(startPoint, endPoint, ctx, doorThickness) {
 
-  // 矩形的左右中心坐标和长度厚度
+  // 门框的左右中心坐标和长度厚度
   const leftCenter = startPoint
   const rightCenter = endPoint
 
-  // 计算矩形的倾斜角度
+  // 计算门框的倾斜角度
   const angle = Math.atan2(rightCenter.y - leftCenter.y, rightCenter.x - leftCenter.x)
 
-  // 计算矩形的四个顶点坐标
+  // 计算门框的四个顶点坐标
   const topLeft = {
-    x: leftCenter.x - doorThickness / 2 * Math.sin(angle),
-    y: leftCenter.y + doorThickness / 2 * Math.cos(angle)
+    x: Math.ceil(leftCenter.x - doorThickness / 2 * Math.sin(angle)),
+    y: Math.ceil(leftCenter.y + doorThickness / 2 * Math.cos(angle))
   }
   const topRight = {
-    x: rightCenter.x - doorThickness / 2 * Math.sin(angle),
-    y: rightCenter.y + doorThickness / 2 * Math.cos(angle)
+    x: Math.ceil(rightCenter.x - doorThickness / 2 * Math.sin(angle)),
+    y: Math.ceil(rightCenter.y + doorThickness / 2 * Math.cos(angle))
   }
   const bottomLeft = {
-    x: leftCenter.x + doorThickness / 2 * Math.sin(angle),
-    y: leftCenter.y - doorThickness / 2 * Math.cos(angle)
+    x: Math.ceil(leftCenter.x + doorThickness / 2 * Math.sin(angle)),
+    y: Math.ceil(leftCenter.y - doorThickness / 2 * Math.cos(angle))
   }
   const bottomRight = {
-    x: rightCenter.x + doorThickness / 2 * Math.sin(angle),
-    y: rightCenter.y - doorThickness / 2 * Math.cos(angle)
+    x: Math.ceil(rightCenter.x + doorThickness / 2 * Math.sin(angle)),
+    y: Math.ceil(rightCenter.y - doorThickness / 2 * Math.cos(angle))
   }
 
-  console.log('矩形四个顶点坐标', topLeft, topRight, bottomLeft, bottomRight)
+  // 计算门的四个顶点坐标
+  const topLeftD = {
+    x: Math.ceil(leftCenter.x - (doorThickness * .8) / 2 * Math.sin(angle)),
+    y: Math.ceil(leftCenter.y + (doorThickness * .8) / 2 * Math.cos(angle))
+  }
+  const topRightD = {
+    x: Math.ceil(rightCenter.x - (doorThickness * .8) / 2 * Math.sin(angle)),
+    y: Math.ceil(rightCenter.y + (doorThickness * .8) / 2 * Math.cos(angle))
+  }
+  const bottomLeftD = {
+    x: Math.ceil(leftCenter.x + (doorThickness * .8) / 2 * Math.sin(angle)),
+    y: Math.ceil(leftCenter.y - (doorThickness * .8) / 2 * Math.cos(angle))
+  }
+  const bottomRightD = {
+    x: Math.ceil(rightCenter.x + (doorThickness * .8) / 2 * Math.sin(angle)),
+    y: Math.ceil(rightCenter.y - (doorThickness * .8) / 2 * Math.cos(angle))
+  }
+
+  console.log('门框四个顶点坐标', topLeft, topRight, bottomLeft, bottomRight)
+  console.log('门四个顶点坐标', topLeftD, topRightD, bottomLeftD, bottomRightD)
 
   // 计算矩形中间的竖线坐标
   const middleTop = { x: (topLeft.x + topRight.x) / 2, y: (topLeft.y + topRight.y) / 2 }
@@ -113,14 +143,14 @@ function drawDoor(startPoint, endPoint, ctx) {
   ctx.strokeStyle = '#000000' // 边框颜色
   ctx.stroke()
 
-  // 保存门框
+  // 保存门框和门的坐标
   doors.push({
     start: startPoint,
     end: endPoint,
     points: [topLeft, topRight, bottomRight, bottomLeft],
+    pointsD: [topLeftD, topRightD, bottomRightD, bottomLeftD],
     middle: [middleTop, middleBottom],
     width: doorWidth,
-    height: doorHeight
   })
 
   return {

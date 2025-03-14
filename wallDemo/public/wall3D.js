@@ -1,10 +1,32 @@
 // 导入 Three.js 相关模块
 import * as THREE from 'three'
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
-import { ThreeBSP } from 'imports-loader?THREE=three!threebsp'
-// 3D场景相关变量
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+import { ThreeBSP } from 'three-js-csg-es6'
+
+
 let scene, camera, renderer, controls
 let is3DMode = false
+
+// 清除场景（120版本没有scene.clear()）
+function clearScene(scene) {
+  while (scene.children.length > 0) {
+    const child = scene.children[0]
+    scene.remove(child)
+
+    // 如果对象有几何体或材质，记得释放内存
+    if (child.geometry) {
+      child.geometry.dispose()
+    }
+    if (child.material) {
+      // 检查材质是否是一个数组
+      if (Array.isArray(child.material)) {
+        child.material.forEach(material => material.dispose())
+      } else {
+        child.material.dispose()
+      }
+    }
+  }
+}
 
 // 初始化3D场景
 function init3DScene() {
@@ -57,8 +79,12 @@ function init3DScene() {
   controls.target.set(750, 0, 400)
 
   // 添加环境光和定向光
-  const ambientLight = new THREE.AmbientLight(0x404040, 1)
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.5) // 半强度的环境光
   scene.add(ambientLight)
+
+  const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5)
+  directionalLight.position.set(1, 1, 1).normalize()
+  scene.add(directionalLight)
 
   // 主光源
   const mainLight = new THREE.DirectionalLight(0xffffff, 1)
@@ -95,28 +121,26 @@ function init3DScene() {
   scene.add(axesHelper)
 }
 
-// 将2D墙体转换为3D模型
-function createWall3D(wall, doors) {
-  const wallHeight = Number(document.getElementById('wallHeight').value) || 100
-  const shape = new THREE.Shape()
+// 调整坐标到画布中心
+function transformPoint(x, y) {
   const gridSize = 50 // 网格大小
-
-  // 调整坐标到画布中心
-  function transformPoint(x, y) {
-    const centeredX = x - gridSize / 2
-    const centeredY = y - gridSize / 2
-    return {
-      x: 750 - centeredX - 700,
-      y: 400 - centeredY - 400
-    }
+  const centeredX = x - gridSize / 2
+  const centeredY = y - gridSize / 2
+  return {
+    x: 750 - centeredX - 700,
+    y: 400 - centeredY - 400
   }
+}
 
-  // 转换所有点的坐标
+// 将2D墙体转换为3D模型
+function createWall3D(wall) {
+  const wallHeight = Number(document.getElementById('wallHeight').value) || 100
+  // 转换所有墙的坐标
   const transformedPoints = wall.points.map(point =>
     transformPoint(point.x, point.y)
   )
-
-  // 创建形状
+  // 二维墙体
+  const shape = new THREE.Shape()
   shape.moveTo(transformedPoints[0].x, transformedPoints[0].y)
   transformedPoints.forEach((point, i) => {
     if (i > 0) shape.lineTo(point.x, point.y)
@@ -130,115 +154,158 @@ function createWall3D(wall, doors) {
     bevelEnabled: false
   }
 
-  // 创建几何体和材质
+  // 创建墙以及材质
   const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings)
   const material = new THREE.MeshPhongMaterial({
-    color: 0xe0e0e0,
+    color: 0x808080, //深灰色
     side: THREE.DoubleSide,
     shadowSide: THREE.BackSide,
   })
 
-  // 创建墙体网格
+  // 在网格上添加墙体
   const wallMesh = new THREE.Mesh(geometry, material)
   wallMesh.position.y = wallHeight
   wallMesh.rotation.x = Math.PI / 2
   wallMesh.rotation.z = Math.PI
 
-  // 使用 ThreeBSP 处理门洞
-  let wallBSP = new ThreeBSP(wallMesh)
-
-  // 为每个门创建 BSP 对象并从墙体中减去
-  doors.forEach(door => {
-    const leftTop = transformPoint(door.points[0].x, door.points[0].y)
-    const rightTop = transformPoint(door.points[1].x, door.points[1].y)
-    const rightBottom = transformPoint(door.points[2].x, door.points[2].y)
-    const leftBottom = transformPoint(door.points[3].x, door.points[3].y)
-
-    // 计算门的宽度和高度
-    const width = Math.sqrt(
-      Math.pow(rightTop.x - leftTop.x, 2) +
-      Math.pow(rightTop.y - leftTop.y, 2)
-    )
-    const height = wallHeight * 0.8 // 门高度设为墙高的80%
-
-    // 创建门的几何体
-    const doorGeometry = new THREE.BoxGeometry(width, height, wallHeight * 0.3)
-    const doorMesh = new THREE.Mesh(doorGeometry)
-
-    // 设置门的位置
-    const centerX = (leftTop.x + rightTop.x) / 2
-    const centerY = (leftTop.y + rightTop.y) / 2
-    doorMesh.position.set(centerX, wallHeight / 2, centerY)
-
-    // 计算门的旋转角度
-    const angle = Math.atan2(rightTop.y - leftTop.y, rightTop.x - leftTop.x)
-    doorMesh.rotation.y = angle
-
-    // 从墙体中减去门
-    const doorBSP = new ThreeBSP(doorMesh)
-    wallBSP = wallBSP.subtract(doorBSP)
-  })
-
-  // 转换回 Mesh
-  const resultMesh = wallBSP.toMesh()
-  resultMesh.material = material
-  resultMesh.castShadow = true
-  resultMesh.receiveShadow = true
-
-  return resultMesh
+  return wallMesh
 }
 
-// 创建门的逻辑
+// 创建门和门框的逻辑(带D的为门的坐标)
 function createDoor3D(door) {
-  const doorShape = new THREE.Shape()
-  const leftTop = transformPoint(door.points[0].x, door.points[0].y) // 左上角
-  const rightTop = transformPoint(door.points[1].x, door.points[1].y) // 右上角
-  const rightBottom = transformPoint(door.points[2].x, door.points[2].y) // 右下角
-  const leftBottom = transformPoint(door.points[3].x, door.points[3].y) // 左下角
+  const wallHeight = Number(document.getElementById('wallHeight').value) || 100
+  // 转换门框的坐标
+  const transformedPoints = door.points.map(point =>
+    transformPoint(point.x, point.y)
+  )
+  // 转换门的坐标
+  const transformedPointsD = door.pointsD.map(point =>
+    transformPoint(point.x, point.y)
+  )
 
-  // 创建门的形状
-  doorShape.moveTo(leftTop.x, leftTop.y)
-  doorShape.lineTo(rightTop.x, rightTop.y)
-  doorShape.lineTo(rightBottom.x, rightBottom.y)
-  doorShape.lineTo(leftBottom.x, leftBottom.y)
+  // 二维门框
+  const doorShape = new THREE.Shape()
+  // const leftTop = transformPoint(door.points[0].x, door.points[0].y) // 左上角
+  // const rightTop = transformPoint(door.points[1].x, door.points[1].y) // 右上角
+  // const rightBottom = transformPoint(door.points[2].x, door.points[2].y) // 右下角
+  // const leftBottom = transformPoint(door.points[3].x, door.points[3].y) // 左下角
+  doorShape.moveTo(transformedPoints[0].x, transformedPoints[0].y)
+  transformedPoints.forEach((point, i) => {
+    if (i > 0) doorShape.lineTo(point.x, point.y)
+  })
+  doorShape.lineTo(transformedPoints[0].x, transformedPoints[0].y)
+
+  // 二维门
+  const doorShapeD = new THREE.Shape()
+  doorShapeD.moveTo(transformedPointsD[0].x, transformedPointsD[0].y)
+  transformedPointsD.forEach((point, i) => {
+    if (i > 0) doorShapeD.lineTo(point.x, point.y)
+  })
+  doorShapeD.lineTo(transformedPointsD[0].x, transformedPointsD[0].y)
 
   // 门的拉伸设置
   const doorExtrudeSettings = {
     steps: 1,
-    depth: 80, // 门的深度
+    depth: wallHeight * 0.75,
     bevelEnabled: false
   }
 
-  // 创建门的几何体和材质
-  const doorGeometry = new THREE.ExtrudeGeometry(doorShape, doorExtrudeSettings)
+  // 门框的拉伸设置
+  const doorFrameExtrudeSettings = {
+    steps: 1,
+    depth: wallHeight * 0.8,
+    bevelEnabled: false
+  }
+
+  // 创建门和门框以及材质
+  const doorGeometry = new THREE.ExtrudeGeometry(doorShapeD, doorExtrudeSettings)
+  const doorFrameGeometry = new THREE.ExtrudeGeometry(doorShape, doorFrameExtrudeSettings)
   const doorMaterial = new THREE.MeshPhongMaterial({
-    color: 0x0000FF, // 修改门的颜色为蓝色
+    color: 0x008000,
     side: THREE.DoubleSide,
     shadowSide: THREE.BackSide,
   })
 
-  // 创建门的网格
+  // 在网格上添加门
   const doorMesh = new THREE.Mesh(doorGeometry, doorMaterial)
-  doorMesh.position.y = 40 // 根据需要调整门的位置
+  doorMesh.position.y = wallHeight * 0.75
   doorMesh.rotation.x = Math.PI / 2
-  doorMesh.rotation.z = Math.PI // 旋转180度
+  doorMesh.rotation.z = Math.PI
 
-  doorMesh.castShadow = true
-  doorMesh.receiveShadow = true
+  // 在网格上添加门框
+  const doorFrameMesh = new THREE.Mesh(doorFrameGeometry, doorMaterial)
+  doorFrameMesh.position.y = wallHeight * 0.8
+  doorFrameMesh.rotation.x = Math.PI / 2
+  doorFrameMesh.rotation.z = Math.PI
+  return [doorMesh, doorFrameMesh]
+}
 
-  return doorMesh
+// 带有门洞的墙（处理墙和门）
+function createDoorHole3D(wallMeshes, doorFrameMeshes) {
+  // 合并所有门框的BSP对象，合并所有墙的BSP对象
+  let combinedDoorBSP = null
+  let combinedWallBSP = null
+
+  doorFrameMeshes.forEach(doorFrameMesh => {
+    const doorBSP = new ThreeBSP(doorFrameMesh)
+    combinedDoorBSP = combinedDoorBSP ? combinedDoorBSP.union(doorBSP) : doorBSP
+  })
+
+  wallMeshes.forEach(wallMesh => {
+    const wallBSP = new ThreeBSP(wallMesh)
+    combinedWallBSP = combinedWallBSP ? combinedWallBSP.union(wallBSP) : wallBSP
+  })
+
+  // 从墙体中减去所有门框
+  const resultBSP = combinedWallBSP.subtract(combinedDoorBSP)
+  const resultMesh = resultBSP.toMesh()
+
+  // 创建门洞墙以及材质
+  const material = new THREE.MeshPhongMaterial({
+    color: 0x808080, // 深灰色
+    side: THREE.DoubleSide,
+    shadowSide: THREE.BackSide,
+  })
+
+  resultMesh.material = material
+  return resultMesh
 }
 
 // 转换所有墙体为3D
 function convert2Dto3D(walls, doors) {
-  scene.clear()
+  clearScene(scene)
   init3DScene() // 重新初始化场景
+  // 存储Mesh
+  let wallMeshs = []
+  let doorFrameMeshs = []
+
+  // 没门的情况
+  if (doors.length === 0) {
+    walls.forEach(wall => {
+      const wall3D = createWall3D(wall)
+      scene.add(wall3D)
+    })
+    return
+  }
 
   // 转换每面墙
   walls.forEach(wall => {
-    const wall3D = createWall3D(wall, doors) // 传递门的数组
-    scene.add(wall3D)
+    const wall3D = createWall3D(wall)
+    // scene.add(wall3D)
+    wallMeshs.push(wall3D)
   })
+
+  // 转换每扇门
+  doors.forEach(door => {
+    const door3D = createDoor3D(door)
+    scene.add(door3D[0])
+    doorFrameMeshs.push(door3D[1])
+  })
+
+  // 转换门洞
+  const doorHole3D = createDoorHole3D(wallMeshs, doorFrameMeshs)
+  scene.add(doorHole3D)
+
 }
 
 // 动画循环

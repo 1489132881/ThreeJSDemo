@@ -175,7 +175,6 @@ function snapToNearestWallEnd(point, walls, threshold = 50) {
 
 // 鼠标移动：实时绘制预览线
 canvas.addEventListener('mousemove', (e) => {
-  // console.log(walls)
   if (isDrawingDoor) {
     return
   }
@@ -216,6 +215,7 @@ canvas.addEventListener('mouseup', (e) => {
   if (currentPreview) {
     currentWalls.push(currentPreview)
     walls.push(currentPreview)
+    console.log('walls', walls)
     startPoint = currentPreview.end // 将终点设置为下一次绘制的起点
     currentPreview = null
     isDrawing = false
@@ -246,15 +246,13 @@ canvas.addEventListener('mouseup', (e) => {
 
   // 绘制所有门
   if (isDrawingDoor) {
-    console.log('绘制门')
     const rect = canvas.getBoundingClientRect()
     // 查找距离鼠标现在在画布上的最近的墙体
     const mouseX = e.clientX - rect.left
     const mouseY = e.clientY - rect.top
     const { nearestWall, doorStartPoint, doorEndPoint, minDistance } = findNearestWallAndDoorStartPoint(mouseX, mouseY)
-
-    if (isInSegment(doorStartPoint.x, doorEndPoint.x, nearestWall.start.x, nearestWall.end.x) && minDistance < 100) {
-      drawDoor(doorStartPoint, doorEndPoint, ctx) // 只在墙体上绘制门
+    if (isInSegment(doorStartPoint.x, doorEndPoint.x, nearestWall.start.x, nearestWall.end.x, doorStartPoint.y, doorEndPoint.y, nearestWall.start.y, nearestWall.end.y) && minDistance < 100) {
+      drawDoor(doorStartPoint, doorEndPoint, ctx, nearestWall.thickness * 1.2) // 只在墙体上绘制门
 
     }
   }
@@ -392,7 +390,6 @@ function redrawCanvas() {
       // 文本平行于墙体
       const angle = Math.atan2(wall.end.y - wall.start.y, wall.end.x - wall.start.x)
       // 如果角度超过90度，就再加180度
-      console.log(angle)
       const adjustedAngle = angle > Math.PI / 2 ? angle + Math.PI : angle < -Math.PI / 2 ? angle - Math.PI : angle
 
       ctx.save() // 保存当前状态
@@ -407,7 +404,6 @@ function redrawCanvas() {
   })
 
   // 绘制所有墙角
-  console.log('绘制墙角')
   wallCorners.forEach(corner => {
     ctx.fillStyle = '#ddd'
     ctx.beginPath()
