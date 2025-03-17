@@ -1,25 +1,32 @@
-import { Pass } from './Pass.js';
+/**
+ * @author alteredq / http://alteredqualia.com/
+ */
 
-class MaskPass extends Pass {
 
-	constructor( scene, camera ) {
+import { Pass } from "../postprocessing/Pass.js";
 
-		super();
+var MaskPass = function ( scene, camera ) {
 
-		this.scene = scene;
-		this.camera = camera;
+	Pass.call( this );
 
-		this.clear = true;
-		this.needsSwap = false;
+	this.scene = scene;
+	this.camera = camera;
 
-		this.inverse = false;
+	this.clear = true;
+	this.needsSwap = false;
 
-	}
+	this.inverse = false;
 
-	render( renderer, writeBuffer, readBuffer /*, deltaTime, maskActive */ ) {
+};
 
-		const context = renderer.getContext();
-		const state = renderer.state;
+MaskPass.prototype = Object.assign( Object.create( Pass.prototype ), {
+
+	constructor: MaskPass,
+
+	render: function ( renderer, writeBuffer, readBuffer /*, deltaTime, maskActive */ ) {
+
+		var context = renderer.getContext();
+		var state = renderer.state;
 
 		// don't update color or depth
 
@@ -33,7 +40,7 @@ class MaskPass extends Pass {
 
 		// set up stencil
 
-		let writeValue, clearValue;
+		var writeValue, clearValue;
 
 		if ( this.inverse ) {
 
@@ -63,13 +70,10 @@ class MaskPass extends Pass {
 		if ( this.clear ) renderer.clear();
 		renderer.render( this.scene, this.camera );
 
-		// unlock color and depth buffer and make them writable for subsequent rendering/clearing
+		// unlock color and depth buffer for subsequent rendering
 
 		state.buffers.color.setLocked( false );
 		state.buffers.depth.setLocked( false );
-
-		state.buffers.color.setMask( true );
-		state.buffers.depth.setMask( true );
 
 		// only render where stencil is set to 1
 
@@ -80,25 +84,28 @@ class MaskPass extends Pass {
 
 	}
 
-}
+} );
 
-class ClearMaskPass extends Pass {
 
-	constructor() {
+var ClearMaskPass = function () {
 
-		super();
+	Pass.call( this );
 
-		this.needsSwap = false;
+	this.needsSwap = false;
 
-	}
+};
 
-	render( renderer /*, writeBuffer, readBuffer, deltaTime, maskActive */ ) {
+ClearMaskPass.prototype = Object.create( Pass.prototype );
+
+Object.assign( ClearMaskPass.prototype, {
+
+	render: function ( renderer /*, writeBuffer, readBuffer, deltaTime, maskActive */ ) {
 
 		renderer.state.buffers.stencil.setLocked( false );
 		renderer.state.buffers.stencil.setTest( false );
 
 	}
 
-}
+} );
 
 export { MaskPass, ClearMaskPass };

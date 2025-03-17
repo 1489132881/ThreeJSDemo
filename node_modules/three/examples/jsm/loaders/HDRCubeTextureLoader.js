@@ -1,37 +1,72 @@
+/**
+* @author Prashant Sharma / spidersharma03
+* @author Ben Houston / http://clara.io / bhouston
+*/
+
 import {
 	CubeTexture,
 	DataTexture,
 	FileLoader,
 	FloatType,
 	HalfFloatType,
+	LinearEncoding,
 	LinearFilter,
-	LinearSRGBColorSpace,
-	Loader
-} from 'three';
-import { RGBELoader } from '../loaders/RGBELoader.js';
+	Loader,
+	NearestFilter,
+	RGBAFormat,
+	RGBEEncoding,
+	RGBFormat,
+	UnsignedByteType
+} from "../../../build/three.module.js";
+import { RGBELoader } from "../loaders/RGBELoader.js";
 
-class HDRCubeTextureLoader extends Loader {
+var HDRCubeTextureLoader = function ( manager ) {
 
-	constructor( manager ) {
+	Loader.call( this, manager );
 
-		super( manager );
+	this.hdrLoader = new RGBELoader();
+	this.type = UnsignedByteType;
 
-		this.hdrLoader = new RGBELoader();
-		this.type = HalfFloatType;
+};
 
-	}
+HDRCubeTextureLoader.prototype = Object.assign( Object.create( Loader.prototype ), {
 
-	load( urls, onLoad, onProgress, onError ) {
+	constructor: HDRCubeTextureLoader,
 
-		const texture = new CubeTexture();
+	load: function ( urls, onLoad, onProgress, onError ) {
+
+		if ( ! Array.isArray( urls ) ) {
+
+			console.warn( 'THREE.HDRCubeTextureLoader signature has changed. Use .setDataType() instead.' );
+
+			this.setDataType( urls );
+
+			urls = onLoad;
+			onLoad = onProgress;
+			onProgress = onError;
+			onError = arguments[ 4 ];
+
+		}
+
+		var texture = new CubeTexture();
 
 		texture.type = this.type;
 
 		switch ( texture.type ) {
 
+			case UnsignedByteType:
+
+				texture.encoding = RGBEEncoding;
+				texture.format = RGBAFormat;
+				texture.minFilter = NearestFilter;
+				texture.magFilter = NearestFilter;
+				texture.generateMipmaps = false;
+				break;
+
 			case FloatType:
 
-				texture.colorSpace = LinearSRGBColorSpace;
+				texture.encoding = LinearEncoding;
+				texture.format = RGBFormat;
 				texture.minFilter = LinearFilter;
 				texture.magFilter = LinearFilter;
 				texture.generateMipmaps = false;
@@ -39,7 +74,8 @@ class HDRCubeTextureLoader extends Loader {
 
 			case HalfFloatType:
 
-				texture.colorSpace = LinearSRGBColorSpace;
+				texture.encoding = LinearEncoding;
+				texture.format = RGBFormat;
 				texture.minFilter = LinearFilter;
 				texture.magFilter = LinearFilter;
 				texture.generateMipmaps = false;
@@ -47,30 +83,29 @@ class HDRCubeTextureLoader extends Loader {
 
 		}
 
-		const scope = this;
+		var scope = this;
 
-		let loaded = 0;
+		var loaded = 0;
 
 		function loadHDRData( i, onLoad, onProgress, onError ) {
 
 			new FileLoader( scope.manager )
 				.setPath( scope.path )
 				.setResponseType( 'arraybuffer' )
-				.setWithCredentials( scope.withCredentials )
 				.load( urls[ i ], function ( buffer ) {
 
 					loaded ++;
 
-					const texData = scope.hdrLoader.parse( buffer );
+					var texData = scope.hdrLoader.parse( buffer );
 
 					if ( ! texData ) return;
 
 					if ( texData.data !== undefined ) {
 
-						const dataTexture = new DataTexture( texData.data, texData.width, texData.height );
+						var dataTexture = new DataTexture( texData.data, texData.width, texData.height );
 
 						dataTexture.type = texture.type;
-						dataTexture.colorSpace = texture.colorSpace;
+						dataTexture.encoding = texture.encoding;
 						dataTexture.format = texture.format;
 						dataTexture.minFilter = texture.minFilter;
 						dataTexture.magFilter = texture.magFilter;
@@ -91,7 +126,7 @@ class HDRCubeTextureLoader extends Loader {
 
 		}
 
-		for ( let i = 0; i < urls.length; i ++ ) {
+		for ( var i = 0; i < urls.length; i ++ ) {
 
 			loadHDRData( i, onLoad, onProgress, onError );
 
@@ -99,9 +134,9 @@ class HDRCubeTextureLoader extends Loader {
 
 		return texture;
 
-	}
+	},
 
-	setDataType( value ) {
+	setDataType: function ( value ) {
 
 		this.type = value;
 		this.hdrLoader.setDataType( value );
@@ -110,6 +145,6 @@ class HDRCubeTextureLoader extends Loader {
 
 	}
 
-}
+} );
 
 export { HDRCubeTextureLoader };
