@@ -7,6 +7,7 @@ import * as TWEEN from '@tweenjs/tween.js'
 let scene, camera, renderer, controls
 let is3DMode = false
 const tGroup = new TWEEN.Group()
+let ground = new THREE.Mesh()
 
 
 
@@ -76,7 +77,7 @@ function init3DScene() {
 
   // 设置垂直旋转角度限制
   controls.minPolarAngle = 0        // 最小仰角
-  controls.maxPolarAngle = Math.PI / 2 // 最大仰角（90度）
+  controls.maxPolarAngle = Math.PI  // 最大仰角（90度）
 
   // 设置初始目标点
   controls.target.set(750, 0, 400)
@@ -113,7 +114,7 @@ function init3DScene() {
     color: 0xFFFFFF,
     side: THREE.DoubleSide
   })
-  const ground = new THREE.Mesh(groundGeometry, groundMaterial)
+  ground = new THREE.Mesh(groundGeometry, groundMaterial)
   const euler = new THREE.Euler(-Math.PI / 2, 0, 0)
   ground.quaternion.setFromEuler(euler)
   ground.position.set(750, -0.1, 400) // 地面中心对齐画布中心
@@ -319,17 +320,18 @@ viewSideBtn.addEventListener('click', () => setCameraView('side'))
 viewTopBtn.addEventListener('click', () => setCameraView('top'))
 
 // 计算目标四元数的函数
-function getTargetQuaternion(targetPos) {
+function getTargetQuaternion(targetPos, lookAtPos = new THREE.Vector3(750, 0, 400)) {
   const tempObject = new THREE.Object3D()
   tempObject.position.copy(targetPos)
-  tempObject.lookAt(targetPos)
+  tempObject.lookAt(lookAtPos)
   return tempObject.quaternion.clone()
 }
 
 // 相机移动方法
 function setCameraView(view) {
-  let targetPosition = new THREE.Vector3()
-  let targetQuaternion = new THREE.Quaternion()
+  let targetPosition = view.targetPosition || new THREE.Vector3()
+  let targetQuaternion = view.targetQuaternion || new THREE.Quaternion()
+  const lookAtPosition = view.lookAtPosition || new THREE.Vector3(750, 0, 400)
   const currentPosition = camera.position.clone()
   const currentQuaternion = camera.quaternion.clone()
 
@@ -347,16 +349,27 @@ function setCameraView(view) {
       targetQuaternion = getTargetQuaternion(targetPosition)
       break
     default:
-      return
+      break
   }
 
-  // 使用quaternion
-  new TWEEN.Tween({ pos: currentPosition, quat: currentQuaternion }, tGroup)
-    .to({ pos: targetPosition, quat: targetQuaternion }, 1000)
+  camera.lookAt(lookAtPosition)
+
+  console.log('1', lookAtPosition, targetPosition)
+  // 使用quaternion，依然存在视角突变
+  // 网格复位
+  new TWEEN.Tween(controls.target, tGroup)
+    .to({ x: 750, y: 0, z: 400 }, 1000)
+    .easing(TWEEN.Easing.Quadratic.InOut)
+    .start()
+  // 相机移动
+  new TWEEN.Tween({ pos: currentPosition, quat: currentQuaternion, t: 0 }, tGroup)
+    .to({ pos: targetPosition, quat: targetQuaternion, t: 1 }, 2000)
+    .easing(TWEEN.Easing.Quadratic.InOut)
     .onUpdate((object) => {
-      camera.position.copy(object.pos)
-      camera.quaternion.copy(object.quat)
-      if (controls) controls.update()
+      camera.position.lerpVectors(currentPosition, targetPosition, object.t)
+      camera.quaternion.copy(currentQuaternion.clone().slerp(targetQuaternion, object.t))
+
+      controls.update()
       controls.enabled = false
     })
     .onComplete(() => {
@@ -364,18 +377,24 @@ function setCameraView(view) {
     })
     .start()
 
-  // 使用set
-  // new TWEEN.Tween(camera.position, tGroup)
-  //   .to(targetPosition, 1000)
-  //   .easing(TWEEN.Easing.Linear.None)
-  //   .onUpdate(() => {
-  //     // camera.quaternion.slerp(getTargetQuaternion(camera.position, targetPosition), 1)
-  //     camera.lookAt(750, 0, 400)//会有视角突变
-  //   })
-  //   .start()
-
-
 }
+
+// // 鼠标点击物块，进入对应前视角
+// document.addEventListener('dblclick', (event) => {
+//   const raycaster = new THREE.Raycaster()
+//   const mouse = new THREE.Vector2()
+//   mouse.x = (event.clientX / window.innerWidth) * 2 - 1
+//   mouse.y = -(event.clientY / window.innerHeight) * 2 + 1
+//   raycaster.setFromCamera(mouse, camera)
+//   const intersects = raycaster.intersectObjects(scene.children)
+//   if (intersects.length > 0) {
+//     const mosPos = intersects[0].point
+//     const lookAtPos = new THREE.Vector3(mosPos.x, 800, mosPos.z)
+//     const targetPos = new THREE.Vector3(mosPos.x, 400, mosPos.z + 800)
+//     const targetQuaternion = getTargetQuaternion(targetPos, lookAtPos)
+//     setCameraView({ lookAtPosition: lookAtPos, targetPosition: targetPos, targetQuaternion: targetQuaternion })
+//   }
+// })
 
 // 动画循环
 function animate() {
