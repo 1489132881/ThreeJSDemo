@@ -2,10 +2,13 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { ThreeBSP } from 'three-js-csg-es6'
-
+import * as TWEEN from '@tweenjs/tween.js'
 
 let scene, camera, renderer, controls
 let is3DMode = false
+const tGroup = new TWEEN.Group()
+
+
 
 // 清除场景（120版本没有scene.clear()）
 function clearScene(scene) {
@@ -44,7 +47,7 @@ function init3DScene() {
 
   // 调整相机位置和视角
   camera = new THREE.PerspectiveCamera(45, width / height, 1, 5000)
-  camera.position.set(750, 1150, 750) // 调整相机位置到中心点上方
+  camera.position.set(750, 1100, 750) // 调整相机位置到中心点上方
   camera.lookAt(750, 0, 400)         // 看向画布中心
 
   // 创建渲染器
@@ -111,7 +114,8 @@ function init3DScene() {
     side: THREE.DoubleSide
   })
   const ground = new THREE.Mesh(groundGeometry, groundMaterial)
-  ground.rotation.x = -Math.PI / 2
+  const euler = new THREE.Euler(-Math.PI / 2, 0, 0)
+  ground.quaternion.setFromEuler(euler)
   ground.position.set(750, -0.1, 400) // 地面中心对齐画布中心
   ground.receiveShadow = true
   scene.add(ground)
@@ -165,8 +169,8 @@ function createWall3D(wall) {
   // 在网格上添加墙体
   const wallMesh = new THREE.Mesh(geometry, material)
   wallMesh.position.y = wallHeight
-  wallMesh.rotation.x = Math.PI / 2
-  wallMesh.rotation.z = Math.PI
+  const euler = new THREE.Euler(Math.PI / 2, 0, Math.PI)
+  wallMesh.quaternion.setFromEuler(euler)
 
   return wallMesh
 }
@@ -229,14 +233,12 @@ function createDoor3D(door) {
   // 在网格上添加门
   const doorMesh = new THREE.Mesh(doorGeometry, doorMaterial)
   doorMesh.position.y = wallHeight * 0.75
-  doorMesh.rotation.x = Math.PI / 2
-  doorMesh.rotation.z = Math.PI
+  doorMesh.quaternion.setFromEuler(new THREE.Euler(Math.PI / 2, 0, Math.PI))
 
   // 在网格上添加门框
   const doorFrameMesh = new THREE.Mesh(doorFrameGeometry, doorMaterial)
   doorFrameMesh.position.y = wallHeight * 0.8
-  doorFrameMesh.rotation.x = Math.PI / 2
-  doorFrameMesh.rotation.z = Math.PI
+  doorFrameMesh.quaternion.setFromEuler(new THREE.Euler(Math.PI / 2, 0, Math.PI))
   return [doorMesh, doorFrameMesh]
 }
 
@@ -298,7 +300,7 @@ function convert2Dto3D(walls, doors) {
   // 转换每扇门
   doors.forEach(door => {
     const door3D = createDoor3D(door)
-    scene.add(door3D[0])
+    // scene.add(door3D[0])
     doorFrameMeshs.push(door3D[1])
   })
 
@@ -308,12 +310,80 @@ function convert2Dto3D(walls, doors) {
 
 }
 
+// 点击按钮移动相机
+const viewFrontBtn = document.getElementById('viewFront')
+const viewSideBtn = document.getElementById('viewSide')
+const viewTopBtn = document.getElementById('viewTop')
+viewFrontBtn.addEventListener('click', () => setCameraView('front'))
+viewSideBtn.addEventListener('click', () => setCameraView('side'))
+viewTopBtn.addEventListener('click', () => setCameraView('top'))
+
+// 计算目标四元数的函数
+function getTargetQuaternion(targetPos) {
+  const tempObject = new THREE.Object3D()
+  tempObject.position.copy(targetPos)
+  tempObject.lookAt(targetPos)
+  return tempObject.quaternion.clone()
+}
+
+// 相机移动方法
+function setCameraView(view) {
+  let targetPosition = new THREE.Vector3()
+  let targetQuaternion = new THREE.Quaternion()
+  const currentPosition = camera.position.clone()
+  const currentQuaternion = camera.quaternion.clone()
+
+  switch (view) {
+    case 'front':
+      targetPosition = new THREE.Vector3(750, 100, 1200)
+      targetQuaternion = getTargetQuaternion(targetPosition)
+      break
+    case 'side':
+      targetPosition = new THREE.Vector3(750, 700, 1000)
+      targetQuaternion = getTargetQuaternion(targetPosition)
+      break
+    case 'top':
+      targetPosition = new THREE.Vector3(750, 1100, 501)
+      targetQuaternion = getTargetQuaternion(targetPosition)
+      break
+    default:
+      return
+  }
+
+  // 使用quaternion
+  new TWEEN.Tween({ pos: currentPosition, quat: currentQuaternion }, tGroup)
+    .to({ pos: targetPosition, quat: targetQuaternion }, 1000)
+    .onUpdate((object) => {
+      camera.position.copy(object.pos)
+      camera.quaternion.copy(object.quat)
+      if (controls) controls.update()
+      controls.enabled = false
+    })
+    .onComplete(() => {
+      controls.enabled = true
+    })
+    .start()
+
+  // 使用set
+  // new TWEEN.Tween(camera.position, tGroup)
+  //   .to(targetPosition, 1000)
+  //   .easing(TWEEN.Easing.Linear.None)
+  //   .onUpdate(() => {
+  //     // camera.quaternion.slerp(getTargetQuaternion(camera.position, targetPosition), 1)
+  //     camera.lookAt(750, 0, 400)//会有视角突变
+  //   })
+  //   .start()
+
+
+}
+
 // 动画循环
 function animate() {
   if (!is3DMode) return
 
   requestAnimationFrame(animate)
   controls.update()
+  tGroup.update() // 更新TWEEN动画
   renderer.render(scene, camera)
 }
 
@@ -326,12 +396,13 @@ function toggle3DMode(walls, corner, doors) {
   const canvas2d = document.getElementById('canvas')
   const canvas3d = document.getElementById('canvas3d')
   const controlsInfo = document.getElementById('controls-info')
-
+  const controlsViewBtn = document.getElementById('controls-viewBtn')
   if (is3DMode) {
     button.classList.add('active')
     canvas2d.style.display = 'none'
     canvas3d.style.display = 'block'
     controlsInfo.style.display = 'block'  // 显示控制说明
+    controlsViewBtn.style.display = 'block'
     if (!scene) {
       init3DScene()
     }
@@ -343,6 +414,7 @@ function toggle3DMode(walls, corner, doors) {
     canvas3d.style.display = 'none'
     canvas2d.style.display = 'block'
     controlsInfo.style.display = 'none'  // 隐藏控制说明
+    controlsViewBtn.style.display = 'none'
     return false
   }
 }

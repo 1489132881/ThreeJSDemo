@@ -54,9 +54,6 @@
         -moz-user-select: none;
         -ms-user-select: none;
       }
-      .controls-info {
-        pointer-events: none;
-      }
       #controls-info {
         position: absolute;
         top: 10px;
@@ -76,6 +73,14 @@
         border-radius: 5px;
         font-size: 14px;
         pointer-events: none;
+      }
+      #controls-viewBtn {
+        position: absolute;
+        top: 800px;
+        left: 10px;
+        padding: 10px;
+        border-radius: 5px;
+        font-size: 14px;
       }
       .controls label {
         margin-bottom: 4px;
@@ -97,10 +102,15 @@
           右键 - 平移场景<br />
           滚轮 - 缩放场景
         </div>
-        <div id="length-info" class="controls-info">
+        <div id="length-info">
           左键开始绘制<br />
           右键结束绘制<br />
           绘制结束右键墙体查看长度
+        </div>
+        <div id="controls-viewBtn" style="display: none">
+          <button id="viewFront" class="btn-3d">前视角</button>
+          <button id="viewSide" class="btn-3d">侧视角</button>
+          <button id="viewTop" class="btn-3d">顶视角</button>
         </div>
       </div>
 
