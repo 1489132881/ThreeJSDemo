@@ -15,7 +15,7 @@ let mousePos = { x: 0, y: 0 }
 // 添加一个新变量来控制是否显示连线
 let showDistanceLine = true
 
-const wallCorners = [] // 用于存储所有墙角信息
+export const wallCorners = [] // 用于存储所有墙角信息
 
 let currentWalls = [] // 用于存储当前绘制的墙体
 
@@ -295,44 +295,11 @@ function calculateWall(start, end) {
     end: newEnd,
     thickness,
     angle,
-    points
+    points,
+    wallLength: length ? length : Math.sqrt(dx * dx + dy * dy)
   }
 }
 
-function isPointNearLine(point, lineStart, lineEnd, threshold = 10) {
-  const A = point.x - lineStart.x
-  const B = point.y - lineStart.y
-  const C = lineEnd.x - lineStart.x
-  const D = lineEnd.y - lineStart.y
-
-  const dot = A * C + B * D
-  const len_sq = C * C + D * D
-
-  // 如果线段长度为0，直接返回到起点的距离
-  if (len_sq === 0) return Math.sqrt(A * A + B * B)
-
-  let param = dot / len_sq
-
-  // 找到线段上最近的点
-  let xx, yy
-
-  if (param < 0) {
-    xx = lineStart.x
-    yy = lineStart.y
-  } else if (param > 1) {
-    xx = lineEnd.x
-    yy = lineEnd.y
-  } else {
-    xx = lineStart.x + param * C
-    yy = lineStart.y + param * D
-  }
-
-  const dx = point.x - xx
-  const dy = point.y - yy
-  const distance = Math.sqrt(dx * dx + dy * dy)
-
-  return distance <= threshold
-}
 
 function redrawCanvas() {
   ctx.clearRect(0, 0, canvas.width, canvas.height)
@@ -349,58 +316,58 @@ function redrawCanvas() {
     ctx.fill()
 
     // 移除对 showDistanceLine 的依赖，只要鼠标在墙体附近就显示测量线
-    if (isPointNearLine(mousePos, wall.start, wall.end)) {
-      // 添加墙体测量线
-      const length = Math.sqrt(
-        Math.pow(wall.end.x - wall.start.x, 2) +
-        Math.pow(wall.end.y - wall.start.y, 2)
-      ).toFixed(2)
 
-      // 设置测量线样式
-      ctx.strokeStyle = '#666'
-      ctx.setLineDash([5, 5])
-      ctx.lineWidth = 1
+    // 添加墙体测量线
+    const length = Math.sqrt(
+      Math.pow(wall.end.x - wall.start.x, 2) +
+      Math.pow(wall.end.y - wall.start.y, 2)
+    ).toFixed(2)
 
-      // 计算测量线的偏移位置（垂直于墙体）
-      const offsetDistance = 10
-      const offsetX = offsetDistance * Math.sin(-wall.angle)
-      const offsetY = offsetDistance * Math.cos(wall.angle)
+    // 设置测量线样式
+    ctx.strokeStyle = '#666'
+    ctx.setLineDash([5, 5])
+    ctx.lineWidth = 1
 
-      // 绘制测量线
-      ctx.beginPath()
-      ctx.moveTo(wall.start.x - offsetX, wall.start.y - offsetY)
-      ctx.lineTo(wall.end.x - offsetX, wall.end.y - offsetY)
-      ctx.stroke()
+    // 计算测量线的偏移位置（垂直于墙体）
+    const offsetDistance = wall.thickness
+    const offsetX = offsetDistance * Math.sin(-wall.angle)
+    const offsetY = offsetDistance * Math.cos(wall.angle)
 
-      // 绘制测量线两端的短线
-      ctx.setLineDash([])
-      ctx.beginPath()
-      ctx.moveTo(wall.start.x, wall.start.y)
-      ctx.lineTo(wall.start.x - offsetX, wall.start.y - offsetY)
-      ctx.moveTo(wall.end.x, wall.end.y)
-      ctx.lineTo(wall.end.x - offsetX, wall.end.y - offsetY)
-      ctx.stroke()
+    // 绘制测量线
+    ctx.beginPath()
+    ctx.moveTo(wall.start.x - offsetX, wall.start.y - offsetY)
+    ctx.lineTo(wall.end.x - offsetX, wall.end.y - offsetY)
+    ctx.stroke()
 
-      // 添加尺寸文本
-      ctx.fillStyle = 'black'
-      ctx.font = '14px Arial'
-      const midX = (wall.start.x + wall.end.x) / 2 - offsetX
-      const midY = (wall.start.y + wall.end.y) / 2 - offsetY
+    // 绘制测量线两端的短线
+    ctx.setLineDash([])
+    ctx.beginPath()
+    ctx.moveTo(wall.start.x, wall.start.y)
+    ctx.lineTo(wall.start.x - offsetX, wall.start.y - offsetY)
+    ctx.moveTo(wall.end.x, wall.end.y)
+    ctx.lineTo(wall.end.x - offsetX, wall.end.y - offsetY)
+    ctx.stroke()
 
-      // 文本平行于墙体
-      const angle = Math.atan2(wall.end.y - wall.start.y, wall.end.x - wall.start.x)
-      // 如果角度超过90度，就再加180度
-      const adjustedAngle = angle > Math.PI / 2 ? angle + Math.PI : angle < -Math.PI / 2 ? angle - Math.PI : angle
+    // 添加尺寸文本
+    ctx.fillStyle = 'black'
+    ctx.font = '14px Arial'
+    const midX = (wall.start.x + wall.end.x) / 2 - offsetX
+    const midY = (wall.start.y + wall.end.y) / 2 - offsetY
 
-      ctx.save() // 保存当前状态
-      angle > 0
-      const textX = midX - 10
-      const textY = midY - 10
-      ctx.translate(textX, textY) // 移动到文本中心
-      ctx.rotate(adjustedAngle) // 旋转文本
-      ctx.fillText(`${length}px`, 0, 0) // 绘制文本
-      ctx.restore() // 恢复状态
-    }
+    // 文本平行于墙体
+    const angle = Math.atan2(wall.end.y - wall.start.y, wall.end.x - wall.start.x)
+    // 如果角度超过90度，就再加180度
+    const adjustedAngle = angle > Math.PI / 2 ? angle + Math.PI : angle < -Math.PI / 2 ? angle - Math.PI : angle
+
+    ctx.save() // 保存当前状态
+    angle > 0
+    const textX = midX - 10
+    const textY = midY - 10
+    ctx.translate(textX, textY) // 移动到文本中心
+    ctx.rotate(adjustedAngle) // 旋转文本
+    ctx.fillText(`${length}px`, 0, 0) // 绘制文本
+    ctx.restore() // 恢复状态
+
   })
 
   // 绘制所有墙角

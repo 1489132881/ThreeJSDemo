@@ -3,11 +3,17 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { ThreeBSP } from 'three-js-csg-es6'
 import * as TWEEN from '@tweenjs/tween.js'
+import { walls, wallCorners } from './wall.js'
+import { doors } from './door.js'
 
-let scene, camera, renderer, controls
+const width = 1500
+const height = 800
+let scene = null, renderer, controls
+let camera = new THREE.PerspectiveCamera(45, width / height, 1, 5000)
 let is3DMode = false
 const tGroup = new TWEEN.Group()
 let ground = new THREE.Mesh()
+const changeViewBtn = document.getElementById('view3d')
 
 
 
@@ -32,6 +38,26 @@ function clearScene(scene) {
   }
 }
 
+// 切换正交/投影
+let isOrthographic = false
+changeViewBtn.addEventListener('click', () => {
+  isOrthographic = !isOrthographic
+  toggleOrthographic(isOrthographic)
+  reRender3D(walls, wallCorners, doors)
+})
+function toggleOrthographic(isOrthographic) {
+  if (isOrthographic) {
+    camera = new THREE.PerspectiveCamera(45, width / height, 1, 5000)
+  } else {
+    camera = new THREE.OrthographicCamera(-width / 2, width / 2, height / 2, -height / 2, 1, 5000)
+  }
+}
+
+// 鼠标移动时记录当前相机位置
+// document.addEventListener('mousemove', (event) => {
+//   console.log(camera.position)
+// })
+
 // 初始化3D场景
 function init3DScene() {
   // 创建场景
@@ -39,15 +65,15 @@ function init3DScene() {
   scene.background = new THREE.Color(0xFFFFFF)
 
   const canvas3d = document.getElementById('canvas3d')
-  const width = 1500 // 新的宽度
-  const height = 800 // 保持高度
-
   // 更新canvas尺寸
   canvas3d.width = width
   canvas3d.height = height
 
   // 调整相机位置和视角
-  camera = new THREE.PerspectiveCamera(45, width / height, 1, 5000)
+  // camera = new THREE.OrthographicCamera(-width / 2, width / 2, height / 2, -height / 2, 1, 5000)
+  // camera = new THREE.PerspectiveCamera(45, width / height, 1, 5000)
+
+  // camera = camera || new THREE.PerspectiveCamera(45, width / height, 1, 5000)
   camera.position.set(750, 1100, 750) // 调整相机位置到中心点上方
   camera.lookAt(750, 0, 400)         // 看向画布中心
 
@@ -69,7 +95,7 @@ function init3DScene() {
   // 启用平移
   controls.enablePan = true         // 启用平移（拖动）
   controls.panSpeed = 1.0           // 平移速度
-  controls.screenSpacePanning = true // 使平移始终跟随屏幕空间
+  // controls.screenSpacePanning = true
 
   // 设置缩放限制
   controls.minDistance = 100        // 最小缩放距离
@@ -77,7 +103,7 @@ function init3DScene() {
 
   // 设置垂直旋转角度限制
   controls.minPolarAngle = 0        // 最小仰角
-  controls.maxPolarAngle = Math.PI  // 最大仰角（90度）
+  controls.maxPolarAngle = Math.PI / 2  // 最大仰角（90度）
 
   // 设置初始目标点
   controls.target.set(750, 0, 400)
@@ -309,6 +335,7 @@ function convert2Dto3D(walls, doors) {
   const doorHole3D = createDoorHole3D(wallMeshs, doorFrameMeshs)
   scene.add(doorHole3D)
 
+
 }
 
 // 点击按钮移动相机
@@ -331,13 +358,14 @@ function getTargetQuaternion(targetPos, lookAtPos = new THREE.Vector3(750, 0, 40
 function setCameraView(view) {
   let targetPosition = view.targetPosition || new THREE.Vector3()
   let targetQuaternion = view.targetQuaternion || new THREE.Quaternion()
-  const lookAtPosition = view.lookAtPosition || new THREE.Vector3(750, 0, 400)
+  let lookAtPosition = view.lookAtPosition || new THREE.Vector3(750, 0, 400)
   const currentPosition = camera.position.clone()
   const currentQuaternion = camera.quaternion.clone()
+  controls.maxPolarAngle = Math.PI / 2
 
   switch (view) {
     case 'front':
-      targetPosition = new THREE.Vector3(750, 100, 1200)
+      targetPosition = new THREE.Vector3(750, 300, 1200)
       targetQuaternion = getTargetQuaternion(targetPosition)
       break
     case 'side':
@@ -345,8 +373,13 @@ function setCameraView(view) {
       targetQuaternion = getTargetQuaternion(targetPosition)
       break
     case 'top':
-      targetPosition = new THREE.Vector3(750, 1100, 501)
+      targetPosition = new THREE.Vector3(750, 1100, 401)
       targetQuaternion = getTargetQuaternion(targetPosition)
+      if (!isOrthographic) {
+        // 禁止旋转
+        controls.maxPolarAngle = 0
+
+      }
       break
     default:
       break
@@ -363,8 +396,8 @@ function setCameraView(view) {
     .start()
   // 相机移动
   new TWEEN.Tween({ pos: currentPosition, quat: currentQuaternion, t: 0 }, tGroup)
-    .to({ pos: targetPosition, quat: targetQuaternion, t: 1 }, 2000)
-    .easing(TWEEN.Easing.Quadratic.InOut)
+    .to({ pos: targetPosition, quat: targetQuaternion, t: 1 }, 1000)
+    .easing(TWEEN.Easing.Linear.None)
     .onUpdate((object) => {
       camera.position.lerpVectors(currentPosition, targetPosition, object.t)
       camera.quaternion.copy(currentQuaternion.clone().slerp(targetQuaternion, object.t))
@@ -379,22 +412,58 @@ function setCameraView(view) {
 
 }
 
-// // 鼠标点击物块，进入对应前视角
+function getClickWallmesh(walls) {
+  const wallMeshs = []
+  walls.forEach(wall => {
+    const wall3D = createWall3D(wall)
+    wallMeshs.push(wall3D)
+  })
+  return wallMeshs
+}
+
+// 鼠标点击物块，进入对应前视角
 // document.addEventListener('dblclick', (event) => {
 //   const raycaster = new THREE.Raycaster()
-//   const mouse = new THREE.Vector2()
-//   mouse.x = (event.clientX / window.innerWidth) * 2 - 1
-//   mouse.y = -(event.clientY / window.innerHeight) * 2 + 1
-//   raycaster.setFromCamera(mouse, camera)
-//   const intersects = raycaster.intersectObjects(scene.children)
-//   if (intersects.length > 0) {
-//     const mosPos = intersects[0].point
-//     const lookAtPos = new THREE.Vector3(mosPos.x, 800, mosPos.z)
-//     const targetPos = new THREE.Vector3(mosPos.x, 400, mosPos.z + 800)
-//     const targetQuaternion = getTargetQuaternion(targetPos, lookAtPos)
-//     setCameraView({ lookAtPosition: lookAtPos, targetPosition: targetPos, targetQuaternion: targetQuaternion })
+//   const pointer = new THREE.Vector2()
+
+//   function onPointerMove(event) {
+
+//     // calculate pointer position in normalized device coordinates
+//     // (-1 to +1) for both components
+
+//     pointer.x = (event.clientX / window.innerWidth) * 2 - 1
+//     pointer.y = - (event.clientY / window.innerHeight) * 2 + 1
+
 //   }
+
+//   function render() {
+
+//     // update the picking ray with the camera and pointer position
+//     raycaster.setFromCamera(pointer, camera)
+
+//     // calculate objects intersecting the picking ray
+//     const intersects = raycaster.intersectObjects(getClickWallmesh(walls))
+
+//     for (let i = 0; i < intersects.length; i++) {
+
+//       intersects[i].object.material.color.set(0xff0000)
+
+//     }
+
+//     renderer.render(scene, camera)
+
+//   }
+
+//   window.addEventListener('pointermove', onPointerMove)
+
+//   window.requestAnimationFrame(render)
 // })
+
+// function moveCameraToWall(wall) {
+//   const targetPosition = new THREE.Vector3(wall.x / 2, 50, wall.z / 2)
+//   const targetQuaternion = getTargetQuaternion(targetPosition)
+//   setCameraView({ targetPosition, targetQuaternion })
+// }
 
 // 动画循环
 function animate() {
@@ -408,8 +477,7 @@ function animate() {
 
 // 切换2D/3D模式
 function toggle3DMode(walls, corner, doors) {
-  const theWall = walls.concat(corner)
-  console.log(theWall)
+  console.log(walls, 'walls')
   is3DMode = !is3DMode
   const button = document.getElementById('toggle3d')
   const canvas2d = document.getElementById('canvas')
@@ -425,8 +493,9 @@ function toggle3DMode(walls, corner, doors) {
     if (!scene) {
       init3DScene()
     }
-    convert2Dto3D(theWall, doors)
-    animate()
+    reRender3D(walls, corner, doors)
+    // 点击一次切换正交
+    changeViewBtn.click()
     return true
   } else {
     button.classList.remove('active')
@@ -436,6 +505,13 @@ function toggle3DMode(walls, corner, doors) {
     controlsViewBtn.style.display = 'none'
     return false
   }
+}
+
+//3d渲染
+function reRender3D(walls, corner, doors) {
+  const theWall = walls.concat(corner)
+  convert2Dto3D(theWall, doors)
+  animate()
 }
 
 // 导出需要的函数和变量
