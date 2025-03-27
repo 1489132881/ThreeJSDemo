@@ -5,47 +5,295 @@ import { ThreeBSP } from 'three-js-csg-es6'
 import * as TWEEN from '@tweenjs/tween.js'
 import { walls, wallCorners } from './wall.js'
 import { doors } from './door.js'
-
-const width = 1500
-const height = 800
-let scene = null, renderer, controls
-let camera = new THREE.PerspectiveCamera(45, width / height, 1, 5000)
 let is3DMode = false
+const width = 1550
+const height = 850
+let scene = null, renderer, controls, raycaster
+let INTERSECTED
+let camera = new THREE.PerspectiveCamera(45, width / height, 1, 5000)
 const tGroup = new TWEEN.Group()
 let ground = new THREE.Mesh()
+const pointer = new THREE.Vector2()
+
 const changeViewBtn = document.getElementById('view3d')
 
 
-
-// 清除场景（120版本没有scene.clear()）
-function clearScene(scene) {
-  while (scene.children.length > 0) {
-    const child = scene.children[0]
-    scene.remove(child)
-
-    // 如果对象有几何体或材质，记得释放内存
-    if (child.geometry) {
-      child.geometry.dispose()
-    }
-    if (child.material) {
-      // 检查材质是否是一个数组
-      if (Array.isArray(child.material)) {
-        child.material.forEach(material => material.dispose())
-      } else {
-        child.material.dispose()
-      }
-    }
+const walls1 = [
+  {
+    start: { x: 250, y: 250 },
+    end: { x: 1341, y: 250 },
+    thickness: 10,
+    angle: 0,
+    points: [
+      { x: 250, y: 245 },
+      { x: 250, y: 255 },
+      { x: 1341, y: 255 },
+      { x: 1341, y: 245 }
+    ],
+    wallLength: 1091
+  },
+  {
+    start: { x: 1341, y: 250 },
+    end: { x: 1341, y: 765 },
+    thickness: 10,
+    angle: 1.5707963267948966,
+    points: [
+      { x: 1346, y: 250 },
+      { x: 1336, y: 250 },
+      { x: 1336, y: 765 },
+      { x: 1346, y: 765 }
+    ],
+    wallLength: 515
+  },
+  {
+    start: { x: 1341, y: 765 },
+    end: { x: 260, y: 765 },
+    thickness: 10,
+    angle: 3.141592653589793,
+    points: [
+      { x: 1341, y: 770 },
+      { x: 1341, y: 760 },
+      { x: 260, y: 760 },
+      { x: 260, y: 770 }
+    ],
+    wallLength: 1081
+  },
+  {
+    start: { x: 260, y: 765 },
+    end: { x: 250, y: 250 },
+    thickness: 10,
+    angle: -1.5902113626972147,
+    points: [
+      { x: 255.00094232944673, y: 765.0970690809817 },
+      { x: 264.99905767055327, y: 764.9029309190183 },
+      { x: 254.99905767055327, y: 249.9029309190184 },
+      { x: 245.00094232944673, y: 250.0970690809816 }
+    ],
+    wallLength: 515.097078228949
   }
+]
+
+const corner1 = [
+  {
+    points: [
+      { x: 1341, y: 255 },
+      { x: 1336, y: 255 },
+      { x: 1336, y: 250 },
+      { x: 1341, y: 250 }
+    ]
+  },
+  {
+    points: [
+      { x: 1341, y: 245 },
+      { x: 1346, y: 245 },
+      { x: 1346, y: 250 },
+      { x: 1341, y: 250 }
+    ]
+  },
+  {
+    points: [
+      { x: 1336, y: 765 },
+      { x: 1336, y: 760 },
+      { x: 1341, y: 760 },
+      { x: 1341, y: 765 }
+    ]
+  },
+  {
+    points: [
+      { x: 1346, y: 765 },
+      { x: 1346, y: 770 },
+      { x: 1341, y: 770 },
+      { x: 1341, y: 765 }
+    ]
+  },
+  {
+    points: [
+      { x: 260, y: 760 },
+      { x: 264.90385512843636, y: 760 },
+      { x: 264.99905767055327, y: 764.9029309190183 },
+      { x: 260, y: 765 }
+    ]
+  },
+  {
+    points: [
+      { x: 260, y: 770 },
+      { x: 255.09614487156364, y: 770 },
+      { x: 255.00094232944673, y: 765.0970690809817 },
+      { x: 260, y: 765 }
+    ]
+  },
+  {
+    points: [
+      { x: 250, y: 255 },
+      { x: 255.09802988571795, y: 255 },
+      { x: 254.99905767055327, y: 249.9029309190184 },
+      { x: 250, y: 250 }
+    ]
+  },
+  {
+    points: [
+      { x: 250, y: 245 },
+      { x: 244.90197011428205, y: 245 },
+      { x: 245.00094232944673, y: 250.0970690809816 },
+      { x: 250, y: 250 }
+    ]
+  }
+]
+
+const doors1 = [
+  {
+    start: { x: 411, y: 250 },
+    end: { x: 461, y: 250 },
+    points: [
+      { x: 411, y: 256 },
+      { x: 461, y: 256 },
+      { x: 461, y: 244 },
+      { x: 411, y: 244 }
+    ],
+    pointsD: [
+      { x: 411, y: 255 },
+      { x: 461, y: 255 },
+      { x: 461, y: 246 },
+      { x: 411, y: 246 }
+    ],
+    middle: [
+      { x: 436, y: 256 },
+      { x: 436, y: 244 }
+    ],
+    width: 50
+  },
+  {
+    start: { x: 1128, y: 250 },
+    end: { x: 1178, y: 250 },
+    points: [
+      { x: 1128, y: 256 },
+      { x: 1178, y: 256 },
+      { x: 1178, y: 244 },
+      { x: 1128, y: 244 }
+    ],
+    pointsD: [
+      { x: 1128, y: 255 },
+      { x: 1178, y: 255 },
+      { x: 1178, y: 246 },
+      { x: 1128, y: 246 }
+    ],
+    middle: [
+      { x: 1153, y: 256 },
+      { x: 1153, y: 244 }
+    ],
+    width: 50
+  },
+  {
+    start: { x: 1341, y: 501 },
+    end: { x: 1341, y: 551 },
+    points: [
+      { x: 1335, y: 501 },
+      { x: 1335, y: 551 },
+      { x: 1347, y: 551 },
+      { x: 1347, y: 501 }
+    ],
+    pointsD: [
+      { x: 1337, y: 501 },
+      { x: 1337, y: 551 },
+      { x: 1346, y: 551 },
+      { x: 1346, y: 501 }
+    ],
+    middle: [
+      { x: 1335, y: 526 },
+      { x: 1347, y: 526 }
+    ],
+    width: 50
+  },
+  {
+    start: { x: 985, y: 765 },
+    end: { x: 935, y: 765 },
+    points: [
+      { x: 985, y: 759 },
+      { x: 935, y: 759 },
+      { x: 935, y: 771 },
+      { x: 985, y: 771 }
+    ],
+    pointsD: [
+      { x: 985, y: 761 },
+      { x: 935, y: 761 },
+      { x: 935, y: 770 },
+      { x: 985, y: 770 }
+    ],
+    middle: [
+      { x: 960, y: 759 },
+      { x: 960, y: 771 }
+    ],
+    width: 50
+  },
+  {
+    start: { x: 256.7820597380571, y: 599.2760765099407 },
+    end: { x: 255.81136892824094, y: 549.2854998044081 },
+    points: [
+      { x: 263, y: 600 },
+      { x: 262, y: 550 },
+      { x: 250, y: 550 },
+      { x: 251, y: 600 }
+    ],
+    pointsD: [
+      { x: 262, y: 600 },
+      { x: 261, y: 550 },
+      { x: 252, y: 550 },
+      { x: 252, y: 600 }
+    ],
+    middle: [
+      { x: 262.5, y: 575 },
+      { x: 250.5, y: 575 }
+    ],
+    width: 50
+  }
+]
+
+// 定位点，相机点，朝向点
+const camera1 = [
+  { lookAtPosition: { x: 800, y: 100, z: 350 }, locationPosition: { x: 800, y: 100, z: 300 }, cameraPosition: { x: 800, y: 100, z: 450 } },
+  { lookAtPosition: { x: 1240, y: 100, z: 410 }, locationPosition: { x: 1200, y: 100, z: 410 }, cameraPosition: { x: 1055, y: 100, z: 410 } },
+]
+
+// 按下p打印相机当前坐标
+const CameraPosition = () => {
+  console.log(camera.position, 'camera')
+  // 当前相机lookat坐标
+  console.log(camera.getWorldDirection(new THREE.Vector3()), 'camera.lookAt()')
 }
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'p') {
+    CameraPosition()
+  }
+  if (e.key === 'ArrowUp') {
+    camera.position.x += 1
+  }
+  if (e.key === 'ArrowDown') {
+    camera.position.x -= 1
+  }
+  if (e.key === 'ArrowRight') {
+    camera.position.z += 1
+  }
+  if (e.key === 'ArrowLeft') {
+    camera.position.z -= 1
+  }
+  if (e.key === 'w') {
+    camera.position.y += 1
+  }
+  if (e.key === 's') {
+    camera.position.y -= 1
+  }
+})
 
 // 切换正交/投影
 let isOrthographic = false
 changeViewBtn.addEventListener('click', () => {
   isOrthographic = !isOrthographic
   toggleOrthographic(isOrthographic)
-  reRender3D(walls, wallCorners, doors)
+  // reRender3D(walls, wallCorners, doors)
+  reRender3D(walls1, corner1, doors1)
 })
 function toggleOrthographic(isOrthographic) {
+  INTERSECTED = null
   if (isOrthographic) {
     camera = new THREE.PerspectiveCamera(45, width / height, 1, 5000)
   } else {
@@ -53,29 +301,29 @@ function toggleOrthographic(isOrthographic) {
   }
 }
 
-// 鼠标移动时记录当前相机位置
-// document.addEventListener('mousemove', (event) => {
-//   console.log(camera.position)
-// })
+// 计算指针位置
+function onPointerMove(event) {
+  const rect = renderer.domElement.getBoundingClientRect()
+  pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
+  pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
+}
 
 // 初始化3D场景
 function init3DScene() {
-  // 创建场景
   scene = new THREE.Scene()
   scene.background = new THREE.Color(0xFFFFFF)
 
+  // 创建canvas3d
   const canvas3d = document.getElementById('canvas3d')
-  // 更新canvas尺寸
   canvas3d.width = width
   canvas3d.height = height
-
-  // 调整相机位置和视角
-  // camera = new THREE.OrthographicCamera(-width / 2, width / 2, height / 2, -height / 2, 1, 5000)
-  // camera = new THREE.PerspectiveCamera(45, width / height, 1, 5000)
-
-  // camera = camera || new THREE.PerspectiveCamera(45, width / height, 1, 5000)
   camera.position.set(750, 1100, 750) // 调整相机位置到中心点上方
   camera.lookAt(750, 0, 400)         // 看向画布中心
+
+  // 创建射线投射器
+  raycaster = new THREE.Raycaster()
+  document.addEventListener('mousemove', onPointerMove) // 计算指针位置
+  INTERSECTED = null
 
   // 创建渲染器
   renderer = new THREE.WebGLRenderer({
@@ -87,26 +335,15 @@ function init3DScene() {
 
   // 添加轨道控制器并设置限制
   controls = new OrbitControls(camera, renderer.domElement)
-
-  // 启用阻尼效果，使移动更平滑
-  controls.enableDamping = true
+  controls.enableDamping = true // 启用阻尼效果，使移动更平滑
   controls.dampingFactor = 0.05
-
-  // 启用平移
   controls.enablePan = true         // 启用平移（拖动）
   controls.panSpeed = 1.0           // 平移速度
-  // controls.screenSpacePanning = true
-
-  // 设置缩放限制
   controls.minDistance = 100        // 最小缩放距离
   controls.maxDistance = 3000       // 最大缩放距离
-
-  // 设置垂直旋转角度限制
   controls.minPolarAngle = 0        // 最小仰角
   controls.maxPolarAngle = Math.PI / 2  // 最大仰角（90度）
-
-  // 设置初始目标点
-  controls.target.set(750, 0, 400)
+  controls.target.set(750, 100, 400)  // 设置初始目标点
 
   // 添加环境光和定向光
   const ambientLight = new THREE.AmbientLight(0xffffff, 0.5) // 半强度的环境光
@@ -120,13 +357,11 @@ function init3DScene() {
   const mainLight = new THREE.DirectionalLight(0xffffff, 1)
   mainLight.position.set(1500, 1500, 1500)
   mainLight.castShadow = true
-
   mainLight.shadow.camera.left = -1500
   mainLight.shadow.camera.right = 1500
   mainLight.shadow.camera.top = 1500
   mainLight.shadow.camera.bottom = -1500
   mainLight.shadow.camera.far = 3000
-
   scene.add(mainLight)
 
   // 添加网格辅助线
@@ -163,14 +398,14 @@ function transformPoint(x, y) {
   }
 }
 
-// 将2D墙体转换为3D模型
+// 创建墙
 function createWall3D(wall) {
   const wallHeight = Number(document.getElementById('wallHeight').value) || 100
   // 转换所有墙的坐标
   const transformedPoints = wall.points.map(point =>
     transformPoint(point.x, point.y)
   )
-  // 二维墙体
+
   const shape = new THREE.Shape()
   shape.moveTo(transformedPoints[0].x, transformedPoints[0].y)
   transformedPoints.forEach((point, i) => {
@@ -197,7 +432,8 @@ function createWall3D(wall) {
   const wallMesh = new THREE.Mesh(geometry, material)
   wallMesh.position.y = wallHeight
   const euler = new THREE.Euler(Math.PI / 2, 0, Math.PI)
-  wallMesh.quaternion.setFromEuler(euler)
+  // wallMesh.quaternion.setFromEuler(euler)
+  wallMesh.setRotationFromEuler(euler)
 
   return wallMesh
 }
@@ -214,7 +450,6 @@ function createDoor3D(door) {
     transformPoint(point.x, point.y)
   )
 
-  // 二维门框
   const doorShape = new THREE.Shape()
   // const leftTop = transformPoint(door.points[0].x, door.points[0].y) // 左上角
   // const rightTop = transformPoint(door.points[1].x, door.points[1].y) // 右上角
@@ -260,17 +495,17 @@ function createDoor3D(door) {
   // 在网格上添加门
   const doorMesh = new THREE.Mesh(doorGeometry, doorMaterial)
   doorMesh.position.y = wallHeight * 0.75
-  doorMesh.quaternion.setFromEuler(new THREE.Euler(Math.PI / 2, 0, Math.PI))
+  doorMesh.setRotationFromEuler(new THREE.Euler(Math.PI / 2, 0, Math.PI))
 
   // 在网格上添加门框
   const doorFrameMesh = new THREE.Mesh(doorFrameGeometry, doorMaterial)
   doorFrameMesh.position.y = wallHeight * 0.8
-  doorFrameMesh.quaternion.setFromEuler(new THREE.Euler(Math.PI / 2, 0, Math.PI))
+  doorFrameMesh.setRotationFromEuler(new THREE.Euler(Math.PI / 2, 0, Math.PI))
   return [doorMesh, doorFrameMesh]
 }
 
 // 带有门洞的墙（处理墙和门）
-function createDoorHole3D(wallMeshes, doorFrameMeshes) {
+function createDoorHole3D(wallMesh, doorFrameMeshes, index) {
   // 合并所有门框的BSP对象，合并所有墙的BSP对象
   let combinedDoorBSP = null
   let combinedWallBSP = null
@@ -280,10 +515,8 @@ function createDoorHole3D(wallMeshes, doorFrameMeshes) {
     combinedDoorBSP = combinedDoorBSP ? combinedDoorBSP.union(doorBSP) : doorBSP
   })
 
-  wallMeshes.forEach(wallMesh => {
-    const wallBSP = new ThreeBSP(wallMesh)
-    combinedWallBSP = combinedWallBSP ? combinedWallBSP.union(wallBSP) : wallBSP
-  })
+  const wallBSP = new ThreeBSP(wallMesh)
+  combinedWallBSP = combinedWallBSP ? combinedWallBSP.union(wallBSP) : wallBSP
 
   // 从墙体中减去所有门框
   const resultBSP = combinedWallBSP.subtract(combinedDoorBSP)
@@ -297,7 +530,23 @@ function createDoorHole3D(wallMeshes, doorFrameMeshes) {
   })
 
   resultMesh.material = material
+  resultMesh.name = `doorhole${index}`
   return resultMesh
+}
+
+// 3d场景中创建一个圆圈
+const circle3D = (cameraPos, index) => {
+  const circleGeometry = new THREE.CircleGeometry(10, 32) // 半径为5的圆
+  const circleMaterial = new THREE.MeshBasicMaterial({ color: 0x808080, opacity: 0.5, transparent: true }) // 灰色透明度。5
+  const circleMesh = new THREE.Mesh(circleGeometry, circleMaterial)
+  // 在每个相机位置创建一个圆圈
+
+  circleMesh.position.set(cameraPos.locationPosition.x, 10, cameraPos.locationPosition.z)
+  circleMesh.rotation.x = - Math.PI / 2 // 使圆圈平放在地面上
+  // 添加点击事件
+  circleMesh.userData = { cameraPosition: cameraPos.cameraPosition, lookAtPosition: cameraPos.lookAtPosition } // 存储目标位置
+  circleMesh.name = `circle${index}`
+  return circleMesh
 }
 
 // 转换所有墙体为3D
@@ -313,6 +562,9 @@ function convert2Dto3D(walls, doors) {
     walls.forEach(wall => {
       const wall3D = createWall3D(wall)
       scene.add(wall3D)
+    })
+    camera1.forEach((cameraPos, index) => {
+      scene.add(circle3D(cameraPos, index))
     })
     return
   }
@@ -332,9 +584,14 @@ function convert2Dto3D(walls, doors) {
   })
 
   // 转换门洞
-  const doorHole3D = createDoorHole3D(wallMeshs, doorFrameMeshs)
-  scene.add(doorHole3D)
+  wallMeshs.forEach((wallMesh, index) => {
+    const doorHole3D = createDoorHole3D(wallMesh, doorFrameMeshs, index)
+    scene.add(doorHole3D)
+  })
 
+  camera1.forEach((cameraPos, index) => {
+    scene.add(circle3D(cameraPos, index))
+  })
 
 }
 
@@ -387,16 +644,16 @@ function setCameraView(view) {
 
   camera.lookAt(lookAtPosition)
 
-  console.log('1', lookAtPosition, targetPosition)
+  console.log('lookAtPosition', lookAtPosition, 'targetPosition', targetPosition)
   // 使用quaternion，依然存在视角突变
   // 网格复位
   new TWEEN.Tween(controls.target, tGroup)
-    .to({ x: 750, y: 0, z: 400 }, 1000)
+    .to(view.lookAtPosition ? { x: view.lookAtPosition.x, y: view.lookAtPosition.y, z: view.lookAtPosition.z } : { x: 750, y: 100, z: 400 }, 800)
     .easing(TWEEN.Easing.Quadratic.InOut)
     .start()
   // 相机移动
   new TWEEN.Tween({ pos: currentPosition, quat: currentQuaternion, t: 0 }, tGroup)
-    .to({ pos: targetPosition, quat: targetQuaternion, t: 1 }, 1000)
+    .to({ pos: targetPosition, quat: targetQuaternion, t: 1 }, 800)
     .easing(TWEEN.Easing.Linear.None)
     .onUpdate((object) => {
       camera.position.lerpVectors(currentPosition, targetPosition, object.t)
@@ -412,72 +669,77 @@ function setCameraView(view) {
 
 }
 
-function getClickWallmesh(walls) {
-  const wallMeshs = []
-  walls.forEach(wall => {
-    const wall3D = createWall3D(wall)
-    wallMeshs.push(wall3D)
-  })
-  return wallMeshs
+function findIntersects() {
+
+  raycaster.setFromCamera(pointer, camera) // 更新射线投射器
+  // const intersects = raycaster.intersectObjects(scene.children.filter(child => child.name.includes('doorhole')), false)
+  const intersects = raycaster.intersectObjects(scene.children.filter(child => child.name.includes('circle')), false)
+  if (intersects.length > 0) {
+    // console.log(intersects, 'intersects', pointer, scene.children)
+    if (INTERSECTED != intersects[0].object) {
+      if (INTERSECTED) {
+        INTERSECTED.material.opacity = 0.5
+      }
+      INTERSECTED = intersects[0].object
+      INTERSECTED.material.opacity = 1
+      const lookAtPosition = intersects[0].object.userData.lookAtPosition
+      const cameraPosition = intersects[0].object.userData.cameraPosition
+      console.log(lookAtPosition, cameraPosition, 'cameraPos')
+      // 交点点击触发点击事件
+      // 如果是正交相机，则改为投影相机再移动
+      document.getElementById('canvas3d').addEventListener('dblclick', () => {
+        if (!isOrthographic) {
+          changeViewBtn.click()
+        }
+        moveCameraToWall(lookAtPosition, cameraPosition)
+      }, { once: true })
+    }
+  }
+  renderer.render(scene, camera)
 }
 
-// 鼠标点击物块，进入对应前视角
-// document.addEventListener('dblclick', (event) => {
-//   const raycaster = new THREE.Raycaster()
-//   const pointer = new THREE.Vector2()
-
-//   function onPointerMove(event) {
-
-//     // calculate pointer position in normalized device coordinates
-//     // (-1 to +1) for both components
-
-//     pointer.x = (event.clientX / window.innerWidth) * 2 - 1
-//     pointer.y = - (event.clientY / window.innerHeight) * 2 + 1
-
-//   }
-
-//   function render() {
-
-//     // update the picking ray with the camera and pointer position
-//     raycaster.setFromCamera(pointer, camera)
-
-//     // calculate objects intersecting the picking ray
-//     const intersects = raycaster.intersectObjects(getClickWallmesh(walls))
-
-//     for (let i = 0; i < intersects.length; i++) {
-
-//       intersects[i].object.material.color.set(0xff0000)
-
-//     }
-
-//     renderer.render(scene, camera)
-
-//   }
-
-//   window.addEventListener('pointermove', onPointerMove)
-
-//   window.requestAnimationFrame(render)
-// })
-
-// function moveCameraToWall(wall) {
-//   const targetPosition = new THREE.Vector3(wall.x / 2, 50, wall.z / 2)
-//   const targetQuaternion = getTargetQuaternion(targetPosition)
-//   setCameraView({ targetPosition, targetQuaternion })
-// }
+function moveCameraToWall(lookAtPosition, cameraPosition) {
+  const targetPosition = new THREE.Vector3(cameraPosition.x, cameraPosition.y, cameraPosition.z)
+  const targetLookAtPosition = new THREE.Vector3(lookAtPosition.x, lookAtPosition.y, lookAtPosition.z)
+  console.log(targetPosition, targetLookAtPosition, 'targetPosition, targetLookAtPosition')
+  const targetQuaternion = getTargetQuaternion(targetPosition, targetLookAtPosition)
+  setCameraView({ targetPosition, targetQuaternion, lookAtPosition: targetLookAtPosition })
+}
 
 // 动画循环
 function animate() {
   if (!is3DMode) return
-
   requestAnimationFrame(animate)
   controls.update()
   tGroup.update() // 更新TWEEN动画
-  renderer.render(scene, camera)
+  findIntersects()
+}
+
+// 清除场景（120版本没有scene.clear()）
+function clearScene(scene) {
+  while (scene.children.length > 0) {
+    const child = scene.children[0]
+    scene.remove(child)
+
+    // 如果对象有几何体或材质，记得释放内存
+    if (child.geometry) {
+      child.geometry.dispose()
+    }
+    if (child.material) {
+      // 检查材质是否是一个数组
+      if (Array.isArray(child.material)) {
+        child.material.forEach(material => material.dispose())
+      } else {
+        child.material.dispose()
+      }
+    }
+  }
 }
 
 // 切换2D/3D模式
 function toggle3DMode(walls, corner, doors) {
-  console.log(walls, 'walls')
+
+  console.log(walls, 'walls', corner, 'corner', doors, 'doors')
   is3DMode = !is3DMode
   const button = document.getElementById('toggle3d')
   const canvas2d = document.getElementById('canvas')
@@ -493,7 +755,8 @@ function toggle3DMode(walls, corner, doors) {
     if (!scene) {
       init3DScene()
     }
-    reRender3D(walls, corner, doors)
+    reRender3D(walls1, corner1, doors1)
+    // reRender3D(walls, corner, doors)
     // 点击一次切换正交
     changeViewBtn.click()
     return true

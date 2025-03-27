@@ -518,6 +518,8 @@ document.getElementById('toggle3d').addEventListener('click', () => {
   }
 })
 
+document.getElementById('toggle3d').click()
+document.getElementById('toggle3d').style.pointerEvents = 'none'
 
 
 // 监听墙体高度变化
