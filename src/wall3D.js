@@ -251,7 +251,7 @@ const doors1 = [
 // 定位点，相机点，朝向点
 const camera1 = [
   { lookAtPosition: { x: 800, y: 100, z: 350 }, locationPosition: { x: 800, y: 100, z: 300 }, cameraPosition: { x: 800, y: 100, z: 450 } },
-  { lookAtPosition: { x: 1240, y: 100, z: 410 }, locationPosition: { x: 1200, y: 100, z: 410 }, cameraPosition: { x: 1055, y: 100, z: 410 } },
+  { lookAtPosition: { x: 1240, y: 100, z: 310 }, locationPosition: { x: 1200, y: 100, z: 310 }, cameraPosition: { x: 1055, y: 100, z: 310 } },
 ]
 
 // 按下p打印相机当前坐标
@@ -318,7 +318,7 @@ function init3DScene() {
   canvas3d.width = width
   canvas3d.height = height
   camera.position.set(750, 1100, 750) // 调整相机位置到中心点上方
-  camera.lookAt(750, 0, 400)         // 看向画布中心
+  // camera.lookAt(750, 0, 400)         // 看向画布中心
 
   // 创建射线投射器
   raycaster = new THREE.Raycaster()
@@ -343,7 +343,17 @@ function init3DScene() {
   controls.maxDistance = 3000       // 最大缩放距离
   controls.minPolarAngle = 0        // 最小仰角
   controls.maxPolarAngle = Math.PI / 2  // 最大仰角（90度）
-  controls.target.set(750, 100, 400)  // 设置初始目标点
+  controls.target.set(750, 100, 500)  // 设置初始目标点
+  //随着平移同步改变
+  let previousPosition = new THREE.Vector3(750, 100, 500)
+  controls.addEventListener('change', () => {
+    previousPosition.copy(camera.position)
+    const delta = new THREE.Vector3().subVectors(camera.position, previousPosition)
+    controls.target.add(delta)
+    previousPosition.copy(camera.position)
+    console.log(controls.target, 'controls.target')
+  })
+
 
   // 添加环境光和定向光
   const ambientLight = new THREE.AmbientLight(0xffffff, 0.5) // 半强度的环境光
@@ -630,7 +640,7 @@ function setCameraView(view) {
       targetQuaternion = getTargetQuaternion(targetPosition)
       break
     case 'top':
-      targetPosition = new THREE.Vector3(750, 1100, 401)
+      targetPosition = new THREE.Vector3(750, 1150, 401)
       targetQuaternion = getTargetQuaternion(targetPosition)
       if (!isOrthographic) {
         // 禁止旋转
@@ -642,25 +652,32 @@ function setCameraView(view) {
       break
   }
 
-  camera.lookAt(lookAtPosition)
-
   console.log('lookAtPosition', lookAtPosition, 'targetPosition', targetPosition)
   // 使用quaternion，依然存在视角突变
   // 网格复位
   new TWEEN.Tween(controls.target, tGroup)
     .to(view.lookAtPosition ? { x: view.lookAtPosition.x, y: view.lookAtPosition.y, z: view.lookAtPosition.z } : { x: 750, y: 100, z: 400 }, 800)
-    .easing(TWEEN.Easing.Quadratic.InOut)
+    .easing(TWEEN.Easing.Linear.None)
+    .onUpdate(() => {
+      controls.enabled = false
+    })
     .start()
+    .onComplete(() => {
+      controls.enabled = true
+    })
   // 相机移动
   new TWEEN.Tween({ pos: currentPosition, quat: currentQuaternion, t: 0 }, tGroup)
     .to({ pos: targetPosition, quat: targetQuaternion, t: 1 }, 800)
     .easing(TWEEN.Easing.Linear.None)
+    .delay(300)
     .onUpdate((object) => {
       camera.position.lerpVectors(currentPosition, targetPosition, object.t)
-      camera.quaternion.copy(currentQuaternion.clone().slerp(targetQuaternion, object.t))
+      // camera.quaternion.copy(currentQuaternion.clone().slerp(targetQuaternion, object.t))
+      // camera.quaternion.copy(currentQuaternion.clone().slerp(targetQuaternion, object.t))
+      // 重置alpha
+      // camera.alpha = 0
+      // controls.update()
 
-      controls.update()
-      controls.enabled = false
     })
     .onComplete(() => {
       controls.enabled = true
