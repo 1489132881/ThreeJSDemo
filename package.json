@@ -6,11 +6,13 @@
   "dependencies": {
     "@tweenjs/tween.js": "^24.0.0",
     "@types/three": "^0.174.0",
-    "three": "^0.110.0",
+    "high-three": "yarn:three@0.177.0",
+    "three": "^0.124.0",
     "three-js-csg-es6": "^73.0.0",
     "three-orbitcontrols": "^2.110.3"
   },
   "devDependencies": {
     "vite": "^6.2.1"
-  }
+  },
+  "type": "module"
 }

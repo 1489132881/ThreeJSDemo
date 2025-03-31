@@ -3,6 +3,9 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { ThreeBSP } from 'three-js-csg-es6'
 import * as TWEEN from '@tweenjs/tween.js'
+import { shaderMaterial, shaderRender, wallTexture } from './shader.js'
+
+import initSky from './sky.js'
 import { walls, wallCorners } from './wall.js'
 import { doors } from './door.js'
 let is3DMode = false
@@ -14,6 +17,8 @@ let camera = new THREE.PerspectiveCamera(45, width / height, 1, 5000)
 const tGroup = new TWEEN.Group()
 let ground = new THREE.Mesh()
 const pointer = new THREE.Vector2()
+
+
 
 const changeViewBtn = document.getElementById('view3d')
 
@@ -251,8 +256,11 @@ const doors1 = [
 // 定位点，相机点，朝向点
 const camera1 = [
   { lookAtPosition: { x: 800, y: 100, z: 350 }, locationPosition: { x: 800, y: 100, z: 300 }, cameraPosition: { x: 800, y: 100, z: 450 } },
-  { lookAtPosition: { x: 1240, y: 100, z: 310 }, locationPosition: { x: 1200, y: 100, z: 310 }, cameraPosition: { x: 1055, y: 100, z: 310 } },
+  { lookAtPosition: { x: 1140, y: 100, z: 330 }, locationPosition: { x: 1200, y: 100, z: 330 }, cameraPosition: { x: 1100, y: 100, z: 330 } },
+  { lookAtPosition: { x: 757, y: 100, z: 620 }, locationPosition: { x: 757, y: 100, z: 600 }, cameraPosition: { x: 757, y: 100, z: 550 } },
+  { lookAtPosition: { x: 336, y: 100, z: 630 }, locationPosition: { x: 286, y: 100, z: 630 }, cameraPosition: { x: 436, y: 100, z: 630 } },
 ]
+
 
 // 按下p打印相机当前坐标
 const CameraPosition = () => {
@@ -332,6 +340,7 @@ function init3DScene() {
   })
   renderer.setSize(width, height)
   renderer.shadowMap.enabled = true
+  renderer.autoClearColor = false
 
   // 添加轨道控制器并设置限制
   controls = new OrbitControls(camera, renderer.domElement)
@@ -351,9 +360,10 @@ function init3DScene() {
     const delta = new THREE.Vector3().subVectors(camera.position, previousPosition)
     controls.target.add(delta)
     previousPosition.copy(camera.position)
-    console.log(controls.target, 'controls.target')
+    // console.log(controls.target, 'controls.target')
   })
 
+  initSky(scene, camera, renderer)
 
   // 添加环境光和定向光
   const ambientLight = new THREE.AmbientLight(0xffffff, 0.5) // 半强度的环境光
@@ -375,9 +385,11 @@ function init3DScene() {
   scene.add(mainLight)
 
   // 添加网格辅助线
-  const gridHelper = new THREE.GridHelper(1500, 60, 0xf5f5f5, 0xF0F0F0)
-  gridHelper.position.set(750, 0, 400) // 网格中心对齐画布中心
-  scene.add(gridHelper)
+  // const gridHelper = new THREE.GridHelper(1500, 60, 0xf5f5f5, 0xF0F0F0)
+  // gridHelper.position.set(750, 0, 400) // 网格中心对齐画布中心
+  // scene.add(gridHelper)
+
+  // initGround(camera, scene, renderer)
 
   // 添加地面
   const groundGeometry = new THREE.PlaneGeometry(1500, 1500)
@@ -396,6 +408,7 @@ function init3DScene() {
   const axesHelper = new THREE.AxesHelper(100)
   scene.add(axesHelper)
 }
+
 
 // 调整坐标到画布中心
 function transformPoint(x, y) {
@@ -539,7 +552,8 @@ function createDoorHole3D(wallMesh, doorFrameMeshes, index) {
     shadowSide: THREE.BackSide,
   })
 
-  resultMesh.material = material
+  resultMesh.material = shaderMaterial
+
   resultMesh.name = `doorhole${index}`
   return resultMesh
 }
@@ -557,6 +571,17 @@ const circle3D = (cameraPos, index) => {
   circleMesh.userData = { cameraPosition: cameraPos.cameraPosition, lookAtPosition: cameraPos.lookAtPosition } // 存储目标位置
   circleMesh.name = `circle${index}`
   return circleMesh
+}
+
+// 添加墙体内容
+function wallContent(position, size) {
+  const planeGeometry = new THREE.BoxGeometry(size.width, size.height, size.depth)
+  const planeMaterial = new THREE.MeshPhongMaterial({ map: wallTexture })
+  const plane = new THREE.Mesh(planeGeometry, planeMaterial)
+
+  plane.position.set(position.x, position.y, position.z)
+
+  scene.add(plane)
 }
 
 // 转换所有墙体为3D
@@ -603,6 +628,9 @@ function convert2Dto3D(walls, doors) {
     scene.add(circle3D(cameraPos, index))
   })
 
+  wallContent({ x: 660, y: 50, z: 226 }, { width: 400, height: 99, depth: 10 })
+
+
 }
 
 // 点击按钮移动相机
@@ -628,6 +656,7 @@ function setCameraView(view) {
   let lookAtPosition = view.lookAtPosition || new THREE.Vector3(750, 0, 400)
   const currentPosition = camera.position.clone()
   const currentQuaternion = camera.quaternion.clone()
+  let isViewWall = false
   controls.maxPolarAngle = Math.PI / 2
 
   switch (view) {
@@ -649,6 +678,7 @@ function setCameraView(view) {
       }
       break
     default:
+      isViewWall = true
       break
   }
 
@@ -680,7 +710,7 @@ function setCameraView(view) {
 
     })
     .onComplete(() => {
-      controls.enabled = true
+      controls.enablePan = !isViewWall
     })
     .start()
 
@@ -726,6 +756,8 @@ function moveCameraToWall(lookAtPosition, cameraPosition) {
 // 动画循环
 function animate() {
   if (!is3DMode) return
+  shaderRender(performance.now())
+  // shaderRender(0)
   requestAnimationFrame(animate)
   controls.update()
   tGroup.update() // 更新TWEEN动画
