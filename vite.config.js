@@ -22,11 +22,17 @@ export default defineConfig({
           drop_debugger: true
         }
       },
+      chunkSizeWarningLimit: 1000,
       rollupOptions: {
         output: {
-          assetFileNames: 'assets/[name].[ext]',
+          assetFileNames: ({ name }) => {
+            if (/\.(png|jpe?g|gif|svg)$/.test(name ?? '')) {
+              return 'assets/images/[name].[hash][extname]'
+            }
+            return 'assets/[name].[ext]'
+          },
           entryFileNames: 'assets/[name].[hash].js',
-          chunkFileNames: 'assets/[name].[hash].js'
+          chunkFileNames: 'assets/[name].[hash].js',
         },
         format: 'es',
         hoistTransitiveImports: false,

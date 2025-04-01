@@ -3,15 +3,18 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { ThreeBSP } from 'three-js-csg-es6'
 import * as TWEEN from '@tweenjs/tween.js'
-import { shaderMaterial, shaderRender, wallTexture } from './shader.js'
+import { shaderMaterial, shaderRender, getTexture, groundMaterial, wallMaterial } from './shader.js'
 
+import groundTexture from './textures/ground.png'
+import wallContentTexture from './textures/wall1.jpg'
+import wallTexture from './textures/wall.png'
 import initSky from './sky.js'
 import { walls, wallCorners } from './wall.js'
 import { doors } from './door.js'
 let is3DMode = false
 const width = 1550
 const height = 850
-let scene = null, renderer, controls, raycaster
+let scene = null, renderer, controls, raycaster, ring
 let INTERSECTED
 let camera = new THREE.PerspectiveCamera(45, width / height, 1, 5000)
 const tGroup = new TWEEN.Group()
@@ -309,11 +312,28 @@ function toggleOrthographic(isOrthographic) {
   }
 }
 
+let moveTimeout
+
 // 计算指针位置
 function onPointerMove(event) {
+  ring.visible = true
   const rect = renderer.domElement.getBoundingClientRect()
   pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
   pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
+
+  // 更新圆环位置
+  raycaster.setFromCamera(pointer, camera)
+  const ringIntersects = raycaster.intersectObject(ground)
+  if (ringIntersects.length > 0) {
+    ring.position.copy(ringIntersects[0].point)
+    ring.position.y += 2
+  }
+
+  clearTimeout(moveTimeout)
+  moveTimeout = setTimeout(() => {
+    ring.visible = false // 两秒后隐藏圆环
+  }, 2000)
+
 }
 
 // 初始化3D场景
@@ -332,6 +352,12 @@ function init3DScene() {
   raycaster = new THREE.Raycaster()
   document.addEventListener('mousemove', onPointerMove) // 计算指针位置
   INTERSECTED = null
+  ring = new THREE.Mesh(
+    new THREE.RingGeometry(11, 15, 30, 30),
+    new THREE.MeshBasicMaterial({ color: 0xcbcccc, side: THREE.DoubleSide, opacity: 0.5, transparent: true }) //白色半透明环 
+  )
+  ring.quaternion.setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0))
+  scene.add(ring)
 
   // 创建渲染器
   renderer = new THREE.WebGLRenderer({
@@ -393,9 +419,12 @@ function init3DScene() {
 
   // 添加地面
   const groundGeometry = new THREE.PlaneGeometry(1500, 1500)
-  const groundMaterial = new THREE.MeshPhongMaterial({
+  const gTexture = getTexture(groundTexture)
+  gTexture.repeat.set(6, 6)
+  const groundMaterial = new THREE.MeshLambertMaterial({
     color: 0xFFFFFF,
-    side: THREE.DoubleSide
+    side: THREE.DoubleSide,
+    map: gTexture
   })
   ground = new THREE.Mesh(groundGeometry, groundMaterial)
   const euler = new THREE.Euler(-Math.PI / 2, 0, 0)
@@ -546,13 +575,36 @@ function createDoorHole3D(wallMesh, doorFrameMeshes, index) {
   const resultMesh = resultBSP.toMesh()
 
   // 创建门洞墙以及材质
-  const material = new THREE.MeshPhongMaterial({
+  const material = new THREE.MeshLambertMaterial({
     color: 0x808080, // 深灰色
     side: THREE.DoubleSide,
     shadowSide: THREE.BackSide,
+    map: getTexture(wallTexture)
   })
 
-  resultMesh.material = shaderMaterial
+  resultMesh.material = material
+  resultMesh.geometry.computeVertexNormals()
+
+  // 重新计算UV映射
+  resultMesh.geometry.computeBoundingBox()
+  const max = resultMesh.geometry.boundingBox.max
+  const min = resultMesh.geometry.boundingBox.min
+  const offset = new THREE.Vector2(0 - min.x, 0 - min.y)
+  const range = new THREE.Vector2(max.x - min.x, max.y - min.y)
+  const faces = resultMesh.geometry.faces
+
+  resultMesh.geometry.faceVertexUvs[0] = []
+  for (let i = 0; i < faces.length; i++) {
+    const v1 = resultMesh.geometry.vertices[faces[i].a]
+    const v2 = resultMesh.geometry.vertices[faces[i].b]
+    const v3 = resultMesh.geometry.vertices[faces[i].c]
+    resultMesh.geometry.faceVertexUvs[0].push([
+      new THREE.Vector2((v1.x + offset.x) / range.x, (v1.y + offset.y) / range.y),
+      new THREE.Vector2((v2.x + offset.x) / range.x, (v2.y + offset.y) / range.y),
+      new THREE.Vector2((v3.x + offset.x) / range.x, (v3.y + offset.y) / range.y)
+    ])
+  }
+  resultMesh.geometry.uvsNeedUpdate = true
 
   resultMesh.name = `doorhole${index}`
   return resultMesh
@@ -560,8 +612,8 @@ function createDoorHole3D(wallMesh, doorFrameMeshes, index) {
 
 // 3d场景中创建一个圆圈
 const circle3D = (cameraPos, index) => {
-  const circleGeometry = new THREE.CircleGeometry(10, 32) // 半径为5的圆
-  const circleMaterial = new THREE.MeshBasicMaterial({ color: 0x808080, opacity: 0.5, transparent: true }) // 灰色透明度。5
+  const circleGeometry = new THREE.CircleGeometry(16, 32) // 半径为5的圆
+  const circleMaterial = new THREE.MeshBasicMaterial({ color: 0xcecece, opacity: 0.5, transparent: true })
   const circleMesh = new THREE.Mesh(circleGeometry, circleMaterial)
   // 在每个相机位置创建一个圆圈
 
@@ -576,7 +628,7 @@ const circle3D = (cameraPos, index) => {
 // 添加墙体内容
 function wallContent(position, size) {
   const planeGeometry = new THREE.BoxGeometry(size.width, size.height, size.depth)
-  const planeMaterial = new THREE.MeshPhongMaterial({ map: wallTexture })
+  const planeMaterial = new THREE.MeshPhongMaterial({ map: getTexture(wallContentTexture) })
   const plane = new THREE.Mesh(planeGeometry, planeMaterial)
 
   plane.position.set(position.x, position.y, position.z)
@@ -742,6 +794,7 @@ function findIntersects() {
       }, { once: true })
     }
   }
+
   renderer.render(scene, camera)
 }
 

@@ -1,21 +1,16 @@
 import * as THREE from 'high-three'
+import wall1 from './textures/wall1.jpg'
+import wall from './textures/wall.png'
+import groundTexture from './textures/ground.png'
 
 // 创建自定义着色器材质
 const textureLoader = new THREE.TextureLoader()
-const texture = textureLoader.load('https://threejs.org/manual/examples/resources/images/bayer.png')
+// const texture = textureLoader.load('https://threejs.org/manual/examples/resources/images/bayer.png')
+const texture = textureLoader.load(wall)
 texture.minFilter = THREE.LinearFilter
 texture.magFilter = THREE.LinearFilter
 texture.wrapS = THREE.RepeatWrapping
 texture.wrapT = THREE.RepeatWrapping
-const wallTexture = textureLoader.load('./textures/wall1.jpg', () => console.log('Texture loaded successfully'),
-  undefined,
-  (err) => console.error('Error loading texture', err)
-)
-// wallTexture.minFilter = THREE.LinearFilter
-// wallTexture.magFilter = THREE.LinearFilter
-wallTexture.wrapS = THREE.RepeatWrapping
-wallTexture.wrapT = THREE.RepeatWrapping
-wallTexture.repeat.set(1, 1)
 
 const uniforms = {
   iTime: { value: 0 },
@@ -24,13 +19,13 @@ const uniforms = {
 }
 const shaderMaterial = new THREE.ShaderMaterial({
   uniforms: uniforms,
-  // vertexShader: `
-  //   varying vec2 vUv; // 用于传递纹理坐标
-  //   void main() {
-  //     vUv = uv; // 传递纹理坐标
-  //     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-  //   }
-  // `,
+  vertexShader: `
+    varying vec2 vUv; // 用于传递纹理坐标
+    void main() {
+      vUv = uv; // 传递纹理坐标
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
   fragmentShader: `
   #include <common>
 
@@ -66,11 +61,70 @@ const shaderRender = (time) => {
   time *= 0.001
   uniforms.iResolution.value.set(1500, 800, 1)
   uniforms.iTime.value = time
-  requestAnimationFrame(shaderRender)
 }
 
 const imgTexture = new THREE.CanvasTexture('./textures/wall1.jpg')
 imgTexture.colorSpace = THREE.SRGBColorSpace
 const imgMaterial = new THREE.MeshBasicMaterial({ map: imgTexture })
 
-export { shaderMaterial, shaderRender, wallTexture, imgMaterial }
+
+// 纹理
+const getTexture = (url) => {
+  const texture = new THREE.TextureLoader().load(url)
+  texture.minFilter = THREE.LinearMipMapLinearFilter
+  texture.magFilter = THREE.LinearFilter
+  texture.wrapS = THREE.RepeatWrapping
+  texture.wrapT = THREE.RepeatWrapping
+  texture.colorSpace = THREE.SRGBColorSpace
+  return texture
+}
+
+const fragmentShader = `
+  uniform float iTime; // 添加时间变量以实现动态效果
+
+  void main() {
+    // 使用时间生成平滑的噪声
+    float noise = (sin(iTime * 10.0) + sin(iTime * 10.1)) * 0.25 + 0.5; // 生成更平滑的噪声
+    vec3 color = vec3(1.0, 0.0, 0.0); // 保持颜色不变
+    gl_FragColor = vec4(color * noise, 1.0); // 根据噪声调整透明度
+  }
+`
+
+const groundMaterial = new THREE.ShaderMaterial({
+  uniforms: {
+    iTime: { value: 0 },
+    iResolution: { value: new THREE.Vector3(1500, 1500, 1) },
+    iChannel0: { value: getTexture(groundTexture) },
+  },
+  fragmentShader: fragmentShader,
+})
+
+
+const wallTexture = getTexture(wall)
+wallTexture.repeat.set(2, 2)
+wallTexture.offset.set(0.1, 0.1)
+const wallMaterial = new THREE.ShaderMaterial({
+  uniforms: {
+    iTime: { value: 0 },
+    iResolution: { value: new THREE.Vector3(1100, 300, 1) },
+    iChannel0: { value: wallTexture },
+  },
+  // vertexShader: `
+  //   varying vec2 vUv; // 用于传递纹理坐标
+  //   void main() {
+  //     vUv = uv; // 传递纹理坐标
+  //     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  //   }
+  // `,
+  // fragmentShader: `
+  //   varying vec2 vUv; // 接收从顶点着色器传递的纹理坐标
+  //   uniform sampler2D iChannel0; // 纹理采样器
+
+  //   void main() {
+  //     vec4 textureColor = texture2D(iChannel0, vUv); // 使用纹理坐标采样纹理
+  //     gl_FragColor = textureColor; // 将采样到的颜色作为片段颜色输出
+  //   }
+  // `,
+})
+
+export { shaderMaterial, shaderRender, imgMaterial, getTexture, groundMaterial, wallMaterial }
